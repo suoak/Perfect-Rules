@@ -27,6 +27,20 @@ function main(config) {
     };
   }
 
+  function fallbackGroup(name, groups) {
+    return {
+      "name": name,
+      "type": "fallback",
+      "proxies": groups,
+      "url": "https://cp.cloudflare.com/generate_204",
+      "interval": 600,
+      "timeout": 5000,
+      "lazy": true,
+      "expected-status": 204,
+      "max-failed-times": 3
+    };
+  }
+
   var koreaNodes = matching(/^(?:KOR|KR|韩国|🇰🇷)/i);
   var singaporeNodes = matching(/^(?:SG|SGP|新加坡|狮城|🇸🇬)/i);
   var unitedStatesNodes = matching(/^(?:US|USA|美国|🇺🇸)/i);
@@ -40,6 +54,10 @@ function main(config) {
   ].filter(function(group) { return group.proxies.length > 0; });
 
   var regionNames = regionGroups.map(function(group) { return group.name; });
+  var aiFallbackGroup = fallbackGroup(
+    "🛟 AI 故障转移",
+    regionNames.length > 0 ? regionNames : proxyNames
+  );
 
   config["mixed-port"] = 7890;
   config["mode"] = "rule";
@@ -153,7 +171,7 @@ function main(config) {
     {
       "name": "🤖 国外 AI",
       "type": "select",
-      "proxies": [
+      "proxies": ["🛟 AI 故障转移"].concat([
         "🇺🇸 美国节点",
         "🇯🇵 日本节点",
         "🇸🇬 新加坡节点",
@@ -161,9 +179,15 @@ function main(config) {
         "♻️ 自动选择"
       ].filter(function(name) {
         return name === "♻️ 自动选择" || regionNames.indexOf(name) !== -1;
-      })
+      }))
     },
-    urlTestGroup("♻️ 自动选择", proxyNames)
+    {
+      "name": "💻 开发服务",
+      "type": "select",
+      "proxies": ["♻️ 自动选择"].concat(regionNames)
+    },
+    urlTestGroup("♻️ 自动选择", proxyNames),
+    aiFallbackGroup
   ].concat(regionGroups);
 
   config["rule-providers"] = {};
@@ -195,6 +219,16 @@ function main(config) {
     "DOMAIN-SUFFIX,oaistatic.com,🤖 国外 AI",
     "DOMAIN-SUFFIX,oaiusercontent.com,🤖 国外 AI",
     "GEOSITE,category-ai-!cn,🤖 国外 AI",
+    "GEOSITE,github,💻 开发服务",
+    "GEOSITE,gitlab,💻 开发服务",
+    "DOMAIN-SUFFIX,docker.com,💻 开发服务",
+    "DOMAIN-SUFFIX,docker.io,💻 开发服务",
+    "DOMAIN-SUFFIX,npmjs.com,💻 开发服务",
+    "DOMAIN-SUFFIX,npmjs.org,💻 开发服务",
+    "DOMAIN-SUFFIX,pypi.org,💻 开发服务",
+    "DOMAIN-SUFFIX,pythonhosted.org,💻 开发服务",
+    "DOMAIN-SUFFIX,jetbrains.com,💻 开发服务",
+    "DOMAIN-SUFFIX,visualstudio.com,💻 开发服务",
     "GEOSITE,cn,DIRECT",
     "GEOIP,cn,DIRECT,no-resolve",
     "MATCH,🚀 代理选择"

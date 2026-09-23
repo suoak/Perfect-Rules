@@ -24,6 +24,23 @@
     "remarks": "ChatGPT、Codex 等国外 AI 代理"
   },
   {
+    "outboundTag": "proxy",
+    "domain": [
+      "geosite:github",
+      "geosite:gitlab",
+      "domain:docker.com",
+      "domain:docker.io",
+      "domain:npmjs.com",
+      "domain:npmjs.org",
+      "domain:pypi.org",
+      "domain:pythonhosted.org",
+      "domain:jetbrains.com",
+      "domain:visualstudio.com"
+    ],
+    "enabled": true,
+    "remarks": "开发服务代理"
+  },
+  {
     "outboundTag": "direct",
     "domain": ["geosite:cn"],
     "ip": ["geoip:cn"],

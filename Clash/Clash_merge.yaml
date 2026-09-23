@@ -115,11 +115,35 @@ proxy-groups:
   - name: 🤖 国外 AI
     type: select
     proxies:
+      - 🛟 AI 故障转移
       - 🇺🇸 美国节点
       - 🇯🇵 日本节点
       - 🇸🇬 新加坡节点
       - 🇰🇷 韩国节点
       - ♻️ 自动选择
+
+  - name: 💻 开发服务
+    type: select
+    proxies:
+      - ♻️ 自动选择
+      - 🇺🇸 美国节点
+      - 🇯🇵 日本节点
+      - 🇸🇬 新加坡节点
+      - 🇰🇷 韩国节点
+
+  - name: 🛟 AI 故障转移
+    type: fallback
+    proxies:
+      - 🇺🇸 美国节点
+      - 🇯🇵 日本节点
+      - 🇸🇬 新加坡节点
+      - 🇰🇷 韩国节点
+    url: https://cp.cloudflare.com/generate_204
+    interval: 600
+    timeout: 5000
+    lazy: true
+    expected-status: 204
+    max-failed-times: 3
 
   - name: ♻️ 自动选择
     type: url-test
@@ -212,6 +236,16 @@ rules:
   - DOMAIN-SUFFIX,oaistatic.com,🤖 国外 AI
   - DOMAIN-SUFFIX,oaiusercontent.com,🤖 国外 AI
   - GEOSITE,category-ai-!cn,🤖 国外 AI
+  - GEOSITE,github,💻 开发服务
+  - GEOSITE,gitlab,💻 开发服务
+  - DOMAIN-SUFFIX,docker.com,💻 开发服务
+  - DOMAIN-SUFFIX,docker.io,💻 开发服务
+  - DOMAIN-SUFFIX,npmjs.com,💻 开发服务
+  - DOMAIN-SUFFIX,npmjs.org,💻 开发服务
+  - DOMAIN-SUFFIX,pypi.org,💻 开发服务
+  - DOMAIN-SUFFIX,pythonhosted.org,💻 开发服务
+  - DOMAIN-SUFFIX,jetbrains.com,💻 开发服务
+  - DOMAIN-SUFFIX,visualstudio.com,💻 开发服务
   - GEOSITE,cn,DIRECT
   - GEOIP,cn,DIRECT,no-resolve
   - MATCH,🚀 代理选择
