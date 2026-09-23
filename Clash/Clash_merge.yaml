@@ -1,0 +1,217 @@
+# Suchen 专属 Clash / Mihomo 配置
+# 适配节点：KOR01、SG001、US001-US006、JP001-JP003
+
+mode: rule
+log-level: warning
+allow-lan: false
+ipv6: false
+unified-delay: true
+tcp-concurrent: true
+find-process-mode: always
+keep-alive-interval: 30
+keep-alive-idle: 30
+disable-keep-alive: false
+
+profile:
+  store-selected: true
+  store-fake-ip: true
+
+tun:
+  enable: true
+  stack: mixed
+  auto-route: true
+  auto-detect-interface: true
+  # 飞连兼容：避免严格路由的防火墙规则干扰企业 VPN
+  strict-route: false
+  dns-hijack:
+    - any:53
+    - tcp://any:53
+  # 私网流量交还系统路由，由本地网络或飞连处理
+  route-exclude-address:
+    - 10.0.0.0/8
+    - 100.64.0.0/10
+    - 127.0.0.0/8
+    - 169.254.0.0/16
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+
+dns:
+  enable: true
+  listen: 127.0.0.1:1053
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter-mode: blacklist
+  fake-ip-filter:
+    - '*.lan'
+    - '*.local'
+    - '*.localhost'
+    - '*.home.arpa'
+    - '*.ruijie.com.cn'
+    - 'time.*.com'
+    - 'time.*.gov'
+    - 'pool.ntp.org'
+    - '*.push.apple.com'
+    - 'mesu.apple.com'
+    - 'swscan.apple.com'
+    - 'captive.apple.com'
+    - 'connectivitycheck.android.com'
+    - 'www.msftconnecttest.com'
+    - 'www.msftncsi.com'
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://doh.pub/dns-query
+  nameserver-policy:
+    'geosite:private':
+      - system
+    '+.ruijie.com.cn':
+      - system
+    'geosite:cn':
+      - https://dns.alidns.com/dns-query
+      - https://doh.pub/dns-query
+    'geosite:geolocation-!cn':
+      - https://cloudflare-dns.com/dns-query
+      - https://dns.google/dns-query
+  proxy-server-nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://doh.pub/dns-query
+  direct-nameserver:
+    - system
+  direct-nameserver-follow-policy: false
+  respect-rules: true
+
+sniffer:
+  enable: true
+  parse-pure-ip: true
+  force-dns-mapping: true
+  override-destination: true
+  sniff:
+    HTTP:
+      ports: [80, 8080-8880]
+    TLS:
+      ports: [443, 8443]
+    QUIC:
+      ports: [443, 8443]
+  skip-domain:
+    - '+.lan'
+    - '+.local'
+    - '+.ruijie.com.cn'
+    - '+.push.apple.com'
+    - '+.mijia.cloud'
+
+proxy-groups:
+  - name: 🚀 代理选择
+    type: select
+    proxies:
+      - ♻️ 自动选择
+      - 🇺🇸 美国节点
+      - 🇯🇵 日本节点
+      - 🇸🇬 新加坡节点
+      - 🇰🇷 韩国节点
+
+  - name: 🤖 国外 AI
+    type: select
+    proxies:
+      - 🇺🇸 美国节点
+      - 🇯🇵 日本节点
+      - 🇸🇬 新加坡节点
+      - 🇰🇷 韩国节点
+      - ♻️ 自动选择
+
+  - name: ♻️ 自动选择
+    type: url-test
+    include-all-proxies: true
+    exclude-type: Direct
+    url: https://cp.cloudflare.com/generate_204
+    interval: 600
+    timeout: 5000
+    tolerance: 50
+    lazy: true
+    expected-status: 204
+    max-failed-times: 3
+
+  - name: 🇺🇸 美国节点
+    type: url-test
+    include-all-proxies: true
+    filter: '(?i)^(US|USA|美国|🇺🇸)'
+    exclude-type: Direct
+    url: https://cp.cloudflare.com/generate_204
+    interval: 600
+    timeout: 5000
+    tolerance: 50
+    lazy: true
+    expected-status: 204
+    max-failed-times: 3
+
+  - name: 🇯🇵 日本节点
+    type: url-test
+    include-all-proxies: true
+    filter: '(?i)^(JP|JPN|日本|🇯🇵)'
+    exclude-type: Direct
+    url: https://cp.cloudflare.com/generate_204
+    interval: 600
+    timeout: 5000
+    tolerance: 50
+    lazy: true
+    expected-status: 204
+    max-failed-times: 3
+
+  - name: 🇸🇬 新加坡节点
+    type: url-test
+    include-all-proxies: true
+    filter: '(?i)^(SG|SGP|新加坡|狮城|🇸🇬)'
+    exclude-type: Direct
+    url: https://cp.cloudflare.com/generate_204
+    interval: 600
+    timeout: 5000
+    tolerance: 50
+    lazy: true
+    expected-status: 204
+    max-failed-times: 3
+
+  - name: 🇰🇷 韩国节点
+    type: url-test
+    include-all-proxies: true
+    filter: '(?i)^(KOR|KR|韩国|🇰🇷)'
+    exclude-type: Direct
+    url: https://cp.cloudflare.com/generate_204
+    interval: 600
+    timeout: 5000
+    tolerance: 50
+    lazy: true
+    expected-status: 204
+    max-failed-times: 3
+
+rules:
+  - PROCESS-NAME-WILDCARD,*Feishu*,DIRECT
+  - PROCESS-NAME-WILDCARD,*Lark*,DIRECT
+  - DOMAIN-SUFFIX,ruijie.com.cn,DIRECT
+  - GEOSITE,feishu,DIRECT
+  - GEOSITE,lark,DIRECT
+  - DOMAIN-SUFFIX,lan,DIRECT
+  - DOMAIN-SUFFIX,local,DIRECT
+  - DOMAIN-SUFFIX,localhost,DIRECT
+  - DOMAIN-SUFFIX,home.arpa,DIRECT
+  - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve
+  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+  - IP-CIDR,169.254.0.0/16,DIRECT,no-resolve
+  - GEOSITE,private,DIRECT
+  - GEOIP,private,DIRECT,no-resolve
+  - PROCESS-NAME-WILDCARD,*ChatGPT*,🤖 国外 AI
+  - PROCESS-NAME-WILDCARD,*Codex*,🤖 国外 AI
+  - PROCESS-NAME-WILDCARD,*Claude*,🤖 国外 AI
+  - PROCESS-NAME-WILDCARD,*Gemini*,🤖 国外 AI
+  - DOMAIN-SUFFIX,openai.com,🤖 国外 AI
+  - DOMAIN-SUFFIX,chatgpt.com,🤖 国外 AI
+  - DOMAIN-SUFFIX,oaistatic.com,🤖 国外 AI
+  - DOMAIN-SUFFIX,oaiusercontent.com,🤖 国外 AI
+  - GEOSITE,category-ai-!cn,🤖 国外 AI
+  - GEOSITE,cn,DIRECT
+  - GEOIP,cn,DIRECT,no-resolve
+  - MATCH,🚀 代理选择

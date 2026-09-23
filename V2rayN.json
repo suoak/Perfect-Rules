@@ -1,0 +1,39 @@
+[
+  {
+    "outboundTag": "direct",
+    "domain": [
+      "domain:ruijie.com.cn",
+      "geosite:feishu",
+      "geosite:lark",
+      "geosite:private"
+    ],
+    "ip": ["geoip:private"],
+    "enabled": true,
+    "remarks": "公司内网、锐捷和飞书直连"
+  },
+  {
+    "outboundTag": "proxy",
+    "domain": [
+      "domain:openai.com",
+      "domain:chatgpt.com",
+      "domain:oaistatic.com",
+      "domain:oaiusercontent.com",
+      "geosite:category-ai-!cn"
+    ],
+    "enabled": true,
+    "remarks": "ChatGPT、Codex 等国外 AI 代理"
+  },
+  {
+    "outboundTag": "direct",
+    "domain": ["geosite:cn"],
+    "ip": ["geoip:cn"],
+    "enabled": true,
+    "remarks": "中国大陆直连"
+  },
+  {
+    "port": "0-65535",
+    "outboundTag": "proxy",
+    "enabled": true,
+    "remarks": "中国大陆以外代理"
+  }
+]
