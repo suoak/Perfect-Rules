@@ -185,7 +185,18 @@ function main(config) {
     urlTestGroup("♻️ 自动选择", proxyNames)
   ].concat(regionGroups);
 
-  config["rule-providers"] = {};
+  config["rule-providers"] = {
+    "anti-ad": {
+      "type": "http",
+      "behavior": "domain",
+      "format": "mrs",
+      "url": "https://anti-ad.net/mihomo.mrs",
+      "path": "./ruleset/anti-ad.mrs",
+      "interval": 86400,
+      "proxy": "DIRECT",
+      "size-limit": 5242880
+    }
+  };
 
   config["rules"] = [
     "PROCESS-NAME-WILDCARD,*Feishu*,DIRECT",
@@ -345,7 +356,7 @@ function main(config) {
     "DOMAIN-SUFFIX,pythonhosted.org,💻 开发服务",
     "DOMAIN-SUFFIX,jetbrains.com,💻 开发服务",
     "DOMAIN-SUFFIX,visualstudio.com,💻 开发服务",
-    "GEOSITE,category-ads-all,🛡️ 广告拦截",
+    "RULE-SET,anti-ad,🛡️ 广告拦截",
     "GEOSITE,cn,DIRECT",
     "GEOIP,cn,DIRECT,no-resolve",
     "MATCH,🚀 代理选择"
