@@ -158,11 +158,6 @@ proxy-groups:
       - US003
       - US004
       - US005
-      - JP001
-      - JP002
-      - JP003
-      - SG001
-      - KOR01
 
   - name: 💻 开发服务
     type: select
@@ -181,7 +176,10 @@ proxy-groups:
 
   - name: ♻️ 自动选择
     type: url-test
+    proxies:
+      - 🔒 AI 固定出口
     include-all-proxies: true
+    exclude-filter: '(?i)^(US|USA|美国|🇺🇸)'
     exclude-type: Direct
     url: https://cp.cloudflare.com/generate_204
     interval: 600
@@ -192,17 +190,9 @@ proxy-groups:
     max-failed-times: 3
 
   - name: 🇺🇸 美国节点
-    type: url-test
-    include-all-proxies: true
-    filter: '(?i)^(US|USA|美国|🇺🇸)'
-    exclude-type: Direct
-    url: https://cp.cloudflare.com/generate_204
-    interval: 600
-    timeout: 5000
-    tolerance: 50
-    lazy: true
-    expected-status: 204
-    max-failed-times: 3
+    type: select
+    proxies:
+      - 🔒 AI 固定出口
 
   - name: 🇯🇵 日本节点
     type: url-test

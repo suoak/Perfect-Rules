@@ -32,19 +32,32 @@ function main(config) {
   var unitedStatesNodes = matching(/^(?:US|USA|美国|🇺🇸)/i);
   var japanNodes = matching(/^(?:JP|JPN|日本|🇯🇵)/i);
 
+  if (unitedStatesNodes.length === 0) {
+    throw new Error("订阅中没有可用于 AI 固定出口的美国节点");
+  }
+
+  var stableAIProxy = unitedStatesNodes.filter(function(name) {
+    return /^US006$/i.test(name);
+  })[0] || unitedStatesNodes[0];
+  var fixedAIChoices = [stableAIProxy].concat(
+    unitedStatesNodes.filter(function(name) { return name !== stableAIProxy; })
+  );
+  var automaticChoices = ["🔒 AI 固定出口"].concat(
+    proxyNames.filter(function(name) { return unitedStatesNodes.indexOf(name) === -1; })
+  );
+
   var regionGroups = [
-    urlTestGroup("🇺🇸 美国节点", unitedStatesNodes),
+    {
+      "name": "🇺🇸 美国节点",
+      "type": "select",
+      "proxies": ["🔒 AI 固定出口"]
+    },
     urlTestGroup("🇯🇵 日本节点", japanNodes),
     urlTestGroup("🇸🇬 新加坡节点", singaporeNodes),
     urlTestGroup("🇰🇷 韩国节点", koreaNodes)
   ].filter(function(group) { return group.proxies.length > 0; });
 
   var regionNames = regionGroups.map(function(group) { return group.name; });
-  var stableAIProxy = unitedStatesNodes.filter(function(name) {
-    return /^US006$/i.test(name);
-  })[0] || unitedStatesNodes[0] || proxyNames[0];
-  var fixedAIChoices = [stableAIProxy]
-    .concat(proxyNames.filter(function(name) { return name !== stableAIProxy; }));
 
   config["mixed-port"] = 7890;
   config["mode"] = "rule";
@@ -182,7 +195,7 @@ function main(config) {
       "type": "select",
       "proxies": ["REJECT", "DIRECT"]
     },
-    urlTestGroup("♻️ 自动选择", proxyNames)
+    urlTestGroup("♻️ 自动选择", automaticChoices)
   ].concat(regionGroups);
 
   config["rule-providers"] = {

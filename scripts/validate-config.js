@@ -52,6 +52,13 @@ function loadJsConfig() {
     `${fs.readFileSync(path.join(root, "Clash", "Clash_mi.js"), "utf8")};this.mainFn=main`,
     context
   );
+  let rejectedMissingUs = false;
+  try {
+    context.mainFn({ proxies: [{ name: "JP001", type: "ss" }] });
+  } catch (error) {
+    rejectedMissingUs = /美国节点/.test(error.message);
+  }
+  assert(rejectedMissingUs, "Clash JS must reject subscriptions without US nodes");
   return context.mainFn({ proxies });
 }
 
@@ -120,8 +127,18 @@ function main() {
 
   for (const config of [jsConfig, yamlConfig]) {
     const ai = config["proxy-groups"].find((group) => group.name === "🔒 AI 固定出口");
+    const us = config["proxy-groups"].find((group) => group.name === "🇺🇸 美国节点");
+    const automatic = config["proxy-groups"].find((group) => group.name === "♻️ 自动选择");
     const ads = config["proxy-groups"].find((group) => group.name === "🛡️ 广告拦截");
     assert(ai && ai.proxies[0] === "US006", "US006 must remain the default AI node");
+    assert(ai.proxies.every((name) => /^US/i.test(name)), "The fixed AI group must contain only US nodes");
+    assert(us && us.type === "select" && JSON.stringify(us.proxies) === JSON.stringify(["🔒 AI 固定出口"]), "US region must share the fixed AI exit");
+    assert(automatic && automatic.proxies.includes("🔒 AI 固定出口"), "Automatic selection must use the shared US exit");
+    if (config === jsConfig) {
+      assert(!automatic.proxies.some((name) => /^US/i.test(name)), "Automatic selection must not contain raw US nodes");
+    } else {
+      assert(automatic["exclude-filter"] === "(?i)^(US|USA|美国|🇺🇸)", "Static automatic selection must exclude raw US nodes");
+    }
     assert(ads && JSON.stringify(ads.proxies) === JSON.stringify(["REJECT", "DIRECT"]), "Ad switch is invalid");
     assert(config["sub-rules"]["ad-filter"][0] === "RULE-SET,ad-allowlist,PASS", "Allowlist must run before anti-AD");
     assert(config["sub-rules"]["ad-filter"][1] === "RULE-SET,anti-ad,🛡️ 广告拦截", "anti-AD sub-rule is invalid");
