@@ -1,0 +1,88 @@
+name: Monitor US006 public IP
+
+on:
+  schedule:
+    - cron: "23 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: monitor-us006
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Check monitor configuration
+        id: configuration
+        env:
+          SUBSCRIPTION_URL: ${{ secrets.SUBSCRIPTION_URL }}
+          US006_EXPECTED_IP: ${{ secrets.US006_EXPECTED_IP }}
+        shell: bash
+        run: |
+          if [[ -n "$SUBSCRIPTION_URL" && -n "$US006_EXPECTED_IP" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Set SUBSCRIPTION_URL and US006_EXPECTED_IP repository secrets to enable monitoring"
+          fi
+
+      - name: Install pinned Mihomo
+        if: steps.configuration.outputs.configured == 'true'
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://github.com/MetaCubeX/mihomo/releases/download/v1.19.31/mihomo-linux-amd64-v1.19.31.gz \
+            --output /tmp/mihomo.gz
+          echo "d5e74bbddbdfff49a1aef7775bf5911da59f0d7196ed509a0ac914b3653dd5f1  /tmp/mihomo.gz" | sha256sum --check
+          gzip --decompress --stdout /tmp/mihomo.gz > /tmp/mihomo
+          chmod +x /tmp/mihomo
+
+      - name: Probe US006 through the subscription
+        if: steps.configuration.outputs.configured == 'true'
+        id: probe
+        env:
+          MIHOMO_BIN: /tmp/mihomo
+          SUBSCRIPTION_URL: ${{ secrets.SUBSCRIPTION_URL }}
+          US006_EXPECTED_IP: ${{ secrets.US006_EXPECTED_IP }}
+        run: node scripts/check-us006-ip.js
+
+      - name: Reconcile change alert
+        if: steps.configuration.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          CHANGED: ${{ steps.probe.outputs.changed }}
+        shell: bash
+        run: |
+          issue_number=$(gh issue list \
+            --state open \
+            --limit 100 \
+            --json number,title \
+            --jq '.[] | select(.title == "US006 公网 IP 已变化") | .number' \
+            | head -n 1)
+
+          if [[ "$CHANGED" == "true" ]]; then
+            if [[ -z "$issue_number" ]]; then
+              gh issue create \
+                --title "US006 公网 IP 已变化" \
+                --body "定时检测发现 US006 的真实公网 IP 与仓库 Secret \`US006_EXPECTED_IP\` 不一致。出于隐私考虑，Issue 和 Actions 日志不会公开该 IP。请在可信设备上通过 US006 访问 \`https://api.ipify.org\` 核实；确认新出口可信后更新 Secret 并重新运行本工作流。"
+            fi
+          elif [[ -n "$issue_number" ]]; then
+            gh issue close "$issue_number" \
+              --comment "当前 US006 出口已与仓库中的预期基准一致，本提醒自动关闭。"
+          fi
+
+      - name: Fail when the public IP changed
+        if: steps.configuration.outputs.configured == 'true' && steps.probe.outputs.changed == 'true'
+        run: |
+          echo "::error::US006 public IP differs from US006_EXPECTED_IP"
+          exit 1

@@ -165,10 +165,10 @@ function main(config) {
     {
       "name": "🤖 国外 AI",
       "type": "select",
-      "proxies": ["🔒 AI 固定出口 US006"]
+      "proxies": ["🔒 AI 固定出口"]
     },
     {
-      "name": "🔒 AI 固定出口 US006",
+      "name": "🔒 AI 固定出口",
       "type": "select",
       "proxies": fixedAIChoices
     },
@@ -186,6 +186,16 @@ function main(config) {
   ].concat(regionGroups);
 
   config["rule-providers"] = {
+    "ad-allowlist": {
+      "type": "http",
+      "behavior": "domain",
+      "format": "yaml",
+      "url": "https://raw.githubusercontent.com/suoak/Perfect-Rules/main/rules/ad-allowlist.yaml",
+      "path": "./ruleset/ad-allowlist.yaml",
+      "interval": 300,
+      "proxy": "DIRECT",
+      "size-limit": 65536
+    },
     "anti-ad": {
       "type": "http",
       "behavior": "domain",
@@ -356,11 +366,20 @@ function main(config) {
     "DOMAIN-SUFFIX,pythonhosted.org,💻 开发服务",
     "DOMAIN-SUFFIX,jetbrains.com,💻 开发服务",
     "DOMAIN-SUFFIX,visualstudio.com,💻 开发服务",
-    "RULE-SET,anti-ad,🛡️ 广告拦截",
+    "SUB-RULE,(NETWORK,tcp),ad-filter",
+    "SUB-RULE,(NETWORK,udp),ad-filter",
     "GEOSITE,cn,DIRECT",
     "GEOIP,cn,DIRECT,no-resolve",
     "MATCH,🚀 代理选择"
   ];
+
+  config["sub-rules"] = {
+    "ad-filter": [
+      "RULE-SET,ad-allowlist,PASS",
+      "RULE-SET,anti-ad,🛡️ 广告拦截",
+      "MATCH,PASS"
+    ]
+  };
 
   return config;
 }

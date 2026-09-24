@@ -1,0 +1,3 @@
+# Only add domains confirmed as anti-AD false positives.
+# Use +.example.com for a domain and all subdomains, or example.com for exact matching.
+payload: []

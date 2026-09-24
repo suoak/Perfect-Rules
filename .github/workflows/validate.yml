@@ -1,0 +1,44 @@
+name: Validate configuration
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install pinned Mihomo
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://github.com/MetaCubeX/mihomo/releases/download/v1.19.31/mihomo-linux-amd64-v1.19.31.gz \
+            --output /tmp/mihomo.gz
+          echo "d5e74bbddbdfff49a1aef7775bf5911da59f0d7196ed509a0ac914b3653dd5f1  /tmp/mihomo.gz" | sha256sum --check
+          gzip --decompress --stdout /tmp/mihomo.gz > /tmp/mihomo
+          chmod +x /tmp/mihomo
+
+      - name: Validate all configurations
+        env:
+          MIHOMO_BIN: /tmp/mihomo
+        run: node scripts/validate-config.js
+
+      - name: Verify anti-AD availability and size
+        shell: bash
+        run: |
+          bytes=$(curl --fail --location --retry 3 --silent https://anti-ad.net/mihomo.mrs | wc --bytes)
+          test "$bytes" -gt 0
+          test "$bytes" -lt 5242880
+          echo "anti-AD MRS size: $bytes bytes"
