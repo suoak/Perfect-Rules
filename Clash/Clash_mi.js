@@ -27,20 +27,6 @@ function main(config) {
     };
   }
 
-  function fallbackGroup(name, groups) {
-    return {
-      "name": name,
-      "type": "fallback",
-      "proxies": groups,
-      "url": "https://cp.cloudflare.com/generate_204",
-      "interval": 600,
-      "timeout": 5000,
-      "lazy": true,
-      "expected-status": 204,
-      "max-failed-times": 3
-    };
-  }
-
   var koreaNodes = matching(/^(?:KOR|KR|韩国|🇰🇷)/i);
   var singaporeNodes = matching(/^(?:SG|SGP|新加坡|狮城|🇸🇬)/i);
   var unitedStatesNodes = matching(/^(?:US|USA|美国|🇺🇸)/i);
@@ -54,10 +40,11 @@ function main(config) {
   ].filter(function(group) { return group.proxies.length > 0; });
 
   var regionNames = regionGroups.map(function(group) { return group.name; });
-  var aiFallbackGroup = fallbackGroup(
-    "🛟 AI 故障转移",
-    regionNames.length > 0 ? regionNames : proxyNames
-  );
+  var stableAIProxy = unitedStatesNodes.filter(function(name) {
+    return /^US006$/i.test(name);
+  })[0] || unitedStatesNodes[0] || proxyNames[0];
+  var fixedAIChoices = [stableAIProxy]
+    .concat(proxyNames.filter(function(name) { return name !== stableAIProxy; }));
 
   config["mixed-port"] = 7890;
   config["mode"] = "rule";
@@ -106,6 +93,9 @@ function main(config) {
       "+.localhost",
       "+.home.arpa",
       "+.ruijie.com.cn",
+      "+.ruijie.com",
+      "geosite:feishu",
+      "geosite:lark",
       "time.*.com",
       "time.*.gov",
       "pool.ntp.org",
@@ -125,6 +115,9 @@ function main(config) {
     "nameserver-policy": {
       "geosite:private": ["system"],
       "+.ruijie.com.cn": ["system"],
+      "+.ruijie.com": ["system"],
+      "geosite:feishu": ["system"],
+      "geosite:lark": ["system"],
       "geosite:cn": [
         "https://dns.alidns.com/dns-query",
         "https://doh.pub/dns-query"
@@ -157,6 +150,7 @@ function main(config) {
       "+.lan",
       "+.local",
       "+.ruijie.com.cn",
+      "+.ruijie.com",
       "+.push.apple.com",
       "+.mijia.cloud"
     ]
@@ -171,23 +165,24 @@ function main(config) {
     {
       "name": "🤖 国外 AI",
       "type": "select",
-      "proxies": ["🛟 AI 故障转移"].concat([
-        "🇺🇸 美国节点",
-        "🇯🇵 日本节点",
-        "🇸🇬 新加坡节点",
-        "🇰🇷 韩国节点",
-        "♻️ 自动选择"
-      ].filter(function(name) {
-        return name === "♻️ 自动选择" || regionNames.indexOf(name) !== -1;
-      }))
+      "proxies": ["🔒 AI 固定出口 US006"]
+    },
+    {
+      "name": "🔒 AI 固定出口 US006",
+      "type": "select",
+      "proxies": fixedAIChoices
     },
     {
       "name": "💻 开发服务",
       "type": "select",
       "proxies": ["♻️ 自动选择"].concat(regionNames)
     },
-    urlTestGroup("♻️ 自动选择", proxyNames),
-    aiFallbackGroup
+    {
+      "name": "🛡️ 广告拦截",
+      "type": "select",
+      "proxies": ["REJECT", "DIRECT"]
+    },
+    urlTestGroup("♻️ 自动选择", proxyNames)
   ].concat(regionGroups);
 
   config["rule-providers"] = {};
@@ -196,6 +191,59 @@ function main(config) {
     "PROCESS-NAME-WILDCARD,*Feishu*,DIRECT",
     "PROCESS-NAME-WILDCARD,*Lark*,DIRECT",
     "DOMAIN-SUFFIX,ruijie.com.cn,DIRECT",
+    "DOMAIN-SUFFIX,ruijie.com,DIRECT",
+    "DOMAIN-SUFFIX,anycross.com,DIRECT",
+    "DOMAIN-SUFFIX,baseopendev.com,DIRECT",
+    "DOMAIN-SUFFIX,fei-shu.cn,DIRECT",
+    "DOMAIN-SUFFIX,feishu.cn,DIRECT",
+    "DOMAIN-SUFFIX,feishu.net,DIRECT",
+    "DOMAIN-SUFFIX,feishuapp-cdn.net,DIRECT",
+    "DOMAIN-SUFFIX,feishuapp.cn,DIRECT",
+    "DOMAIN-SUFFIX,feishuapp.com,DIRECT",
+    "DOMAIN-SUFFIX,feishucdn.com,DIRECT",
+    "DOMAIN-SUFFIX,feishudoc.cn,DIRECT",
+    "DOMAIN-SUFFIX,feishudoc.com,DIRECT",
+    "DOMAIN-SUFFIX,feishuhuiyi.cn,DIRECT",
+    "DOMAIN-SUFFIX,feishuhuiyi.com,DIRECT",
+    "DOMAIN-SUFFIX,feishuimg.com,DIRECT",
+    "DOMAIN-SUFFIX,feishukacdn.com,DIRECT",
+    "DOMAIN-SUFFIX,feishumeetings.cn,DIRECT",
+    "DOMAIN-SUFFIX,feishumeetings.com,DIRECT",
+    "DOMAIN-SUFFIX,feishuoffice.cn,DIRECT",
+    "DOMAIN-SUFFIX,feishuoffice.com,DIRECT",
+    "DOMAIN-SUFFIX,feishupkg.com,DIRECT",
+    "DOMAIN-SUFFIX,feishuvc.cn,DIRECT",
+    "DOMAIN-SUFFIX,feishuvc.com,DIRECT",
+    "DOMAIN-SUFFIX,getfeishu.cn,DIRECT",
+    "DOMAIN-SUFFIX,getfeishu.com,DIRECT",
+    "DOMAIN-SUFFIX,securityfeishu.cn,DIRECT",
+    "DOMAIN-SUFFIX,securityfs.cn,DIRECT",
+    "DOMAIN-SUFFIX,lark.cn,DIRECT",
+    "DOMAIN-SUFFIX,larkcloud.com,DIRECT",
+    "DOMAIN-SUFFIX,larkcloud.net,DIRECT",
+    "DOMAIN-SUFFIX,larkfn.com,DIRECT",
+    "DOMAIN-SUFFIX,larkmeetings.cn,DIRECT",
+    "DOMAIN-SUFFIX,larkmeetings.com,DIRECT",
+    "DOMAIN-SUFFIX,larkoffice.com,DIRECT",
+    "DOMAIN-SUFFIX,larkofficeapp.com,DIRECT",
+    "DOMAIN-SUFFIX,larkofficecdn.com,DIRECT",
+    "DOMAIN-SUFFIX,larkofficeimg.com,DIRECT",
+    "DOMAIN-SUFFIX,larkofficepkg.com,DIRECT",
+    "DOMAIN-SUFFIX,larkrooms.cn,DIRECT",
+    "DOMAIN-SUFFIX,larkrooms.com,DIRECT",
+    "DOMAIN-SUFFIX,larksuite.com,DIRECT",
+    "DOMAIN-SUFFIX,larksuitecdn.com,DIRECT",
+    "DOMAIN-SUFFIX,larksuiteimg.com,DIRECT",
+    "DOMAIN-SUFFIX,larkvc.com,DIRECT",
+    "DOMAIN-SUFFIX,statuslarkoffice.com,DIRECT",
+    "DOMAIN-SUFFIX,thelarkcloud.com,DIRECT",
+    "DOMAIN,frontier-lark-lb-v3.lf.bytelb.net,DIRECT",
+    "DOMAIN,lark-frontier.byteoversea.com,DIRECT",
+    "DOMAIN,rtc-grpc.bytedance.com,DIRECT",
+    "DOMAIN,rtc-grpc-hl.bytedance.com,DIRECT",
+    "DOMAIN,lvcio-media-platform.bytedance.com,DIRECT",
+    "DOMAIN,metrics-producer-proxy.bytedance.com,DIRECT",
+    "DOMAIN,monitor.snssdk.com,DIRECT",
     "GEOSITE,feishu,DIRECT",
     "GEOSITE,lark,DIRECT",
     "DOMAIN-SUFFIX,lan,DIRECT",
@@ -214,11 +262,79 @@ function main(config) {
     "PROCESS-NAME-WILDCARD,*Codex*,🤖 国外 AI",
     "PROCESS-NAME-WILDCARD,*Claude*,🤖 国外 AI",
     "PROCESS-NAME-WILDCARD,*Gemini*,🤖 国外 AI",
+    "PROCESS-NAME-WILDCARD,*Grok*,🤖 国外 AI",
+    "PROCESS-NAME-WILDCARD,*xAI*,🤖 国外 AI",
     "DOMAIN-SUFFIX,openai.com,🤖 国外 AI",
     "DOMAIN-SUFFIX,chatgpt.com,🤖 国外 AI",
     "DOMAIN-SUFFIX,oaistatic.com,🤖 国外 AI",
     "DOMAIN-SUFFIX,oaiusercontent.com,🤖 国外 AI",
+    "DOMAIN-SUFFIX,oaistatsig.com,🤖 国外 AI",
+    "DOMAIN-SUFFIX,openaimerge.com,🤖 国外 AI",
+    "DOMAIN-SUFFIX,workoscdn.com,🤖 国外 AI",
+    "DOMAIN,cdn.workos.com,🤖 国外 AI",
+    "DOMAIN,forwarder.workos.com,🤖 国外 AI",
+    "DOMAIN,setup.workos.com,🤖 国外 AI",
+    "DOMAIN,workos.imgix.net,🤖 国外 AI",
+    "DOMAIN,challenges.cloudflare.com,🤖 国外 AI",
+    "DOMAIN,ct.sendgrid.net,🤖 国外 AI",
+    "DOMAIN,js.stripe.com,🤖 国外 AI",
+    "DOMAIN,rum.browser-intake-datadoghq.com,🤖 国外 AI",
+    "DOMAIN,humb.apple.com,🤖 国外 AI",
+    "DOMAIN-SUFFIX,intercom.io,🤖 国外 AI",
+    "DOMAIN-SUFFIX,intercomcdn.com,🤖 国外 AI",
+    "DOMAIN-SUFFIX,anthropic.com,🤖 国外 AI",
+    "DOMAIN-SUFFIX,claude.ai,🤖 国外 AI",
+    "DOMAIN-SUFFIX,claude.com,🤖 国外 AI",
+    "DOMAIN-SUFFIX,claudeusercontent.com,🤖 国外 AI",
+    "DOMAIN-SUFFIX,sentry.io,🤖 国外 AI",
+    "DOMAIN,gemini.google.com,🤖 国外 AI",
+    "DOMAIN,aistudio.google.com,🤖 国外 AI",
+    "DOMAIN,ai.google.dev,🤖 国外 AI",
+    "DOMAIN,accounts.google.com,🤖 国外 AI",
+    "DOMAIN,oauth2.googleapis.com,🤖 国外 AI",
+    "DOMAIN,generativelanguage.googleapis.com,🤖 国外 AI",
+    "DOMAIN,aiplatform.googleapis.com,🤖 国外 AI",
+    "DOMAIN,cloudaicompanion.googleapis.com,🤖 国外 AI",
+    "DOMAIN,cloudcode-pa.googleapis.com,🤖 国外 AI",
+    "DOMAIN,serviceusage.googleapis.com,🤖 国外 AI",
+    "DOMAIN,cloudresourcemanager.googleapis.com,🤖 国外 AI",
+    "DOMAIN,people.googleapis.com,🤖 国外 AI",
+    "DOMAIN,firebaselogging-pa.googleapis.com,🤖 国外 AI",
+    "DOMAIN,feedback-pa.googleapis.com,🤖 国外 AI",
+    "DOMAIN,apihub.googleapis.com,🤖 国外 AI",
+    "DOMAIN-SUFFIX,gstatic.com,🤖 国外 AI",
+    "DOMAIN-SUFFIX,googleusercontent.com,🤖 国外 AI",
+    "GEOSITE,google,🤖 国外 AI",
+    "DOMAIN-SUFFIX,grok.com,🤖 国外 AI",
+    "DOMAIN-SUFFIX,x.ai,🤖 国外 AI",
+    "DOMAIN-SUFFIX,x.com,🤖 国外 AI",
+    "DOMAIN-SUFFIX,twitter.com,🤖 国外 AI",
+    "DOMAIN-SUFFIX,twimg.com,🤖 国外 AI",
+    "DOMAIN,api.ipify.org,🤖 国外 AI",
     "GEOSITE,category-ai-!cn,🤖 国外 AI",
+    "IP-CIDR,102.37.57.54/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,13.71.25.29/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,135.220.40.201/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,172.203.39.49/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,172.207.173.200/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,172.214.226.198/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,191.233.251.27/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,20.162.96.163/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,20.168.48.117/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,20.184.36.134/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,20.203.144.245/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,20.74.221.21/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,4.151.200.38/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,4.155.146.196/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,4.197.172.116/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,4.217.235.100/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,4.245.198.13/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,40.118.236.137/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,51.4.112.173/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,52.143.181.161/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,68.155.152.41/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,72.146.20.246/32,🤖 国外 AI,no-resolve",
+    "IP-CIDR,74.248.148.7/32,🤖 国外 AI,no-resolve",
     "GEOSITE,github,💻 开发服务",
     "GEOSITE,gitlab,💻 开发服务",
     "DOMAIN-SUFFIX,docker.com,💻 开发服务",
@@ -229,6 +345,7 @@ function main(config) {
     "DOMAIN-SUFFIX,pythonhosted.org,💻 开发服务",
     "DOMAIN-SUFFIX,jetbrains.com,💻 开发服务",
     "DOMAIN-SUFFIX,visualstudio.com,💻 开发服务",
+    "GEOSITE,category-ads-all,🛡️ 广告拦截",
     "GEOSITE,cn,DIRECT",
     "GEOIP,cn,DIRECT,no-resolve",
     "MATCH,🚀 代理选择"
