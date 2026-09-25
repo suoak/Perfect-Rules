@@ -89,7 +89,10 @@ function main(config) {
       "127.0.0.0/8",
       "169.254.0.0/16",
       "172.16.0.0/12",
-      "192.168.0.0/16"
+      "192.168.0.0/16",
+      "112.111.6.185/32",
+      "218.66.91.199/32",
+      "183.250.189.235/32"
     ]
   };
 
@@ -222,6 +225,16 @@ function main(config) {
   };
 
   config["rules"] = [
+    "DST-PORT,15910,DIRECT",
+    "DST-PORT,33443,DIRECT",
+    "DST-PORT,34443,DIRECT",
+    "PROCESS-NAME,UWS_Client.exe,DIRECT",
+    "PROCESS-NAME,UWS_Service.exe,DIRECT",
+    "PROCESS-NAME,UWS_App.exe,DIRECT",
+    "PROCESS-NAME,Launcher_RemoteDesktop.exe,DIRECT",
+    "PROCESS-NAME,ESTWidget.exe,DIRECT",
+    "PROCESS-NAME,EST-DVC.exe,DIRECT",
+    "PROCESS-NAME,ClientDesktopService.exe,DIRECT",
     "PROCESS-NAME-WILDCARD,*Feishu*,DIRECT",
     "PROCESS-NAME-WILDCARD,*Lark*,DIRECT",
     "DOMAIN-SUFFIX,ruijie.com.cn,DIRECT",

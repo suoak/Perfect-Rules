@@ -118,6 +118,7 @@ function main() {
   const v2ray = JSON.parse(fs.readFileSync(path.join(root, "V2rayN.json"), "utf8"));
 
   same(jsConfig.rules, yamlConfig.rules, "rules");
+  same(jsConfig.tun, yamlConfig.tun, "TUN settings");
   same(jsConfig["rule-providers"], yamlConfig["rule-providers"], "rule providers");
   same(jsConfig["sub-rules"], yamlConfig["sub-rules"], "sub-rules");
 
@@ -142,6 +143,14 @@ function main() {
     assert(ads && JSON.stringify(ads.proxies) === JSON.stringify(["REJECT", "DIRECT"]), "Ad switch is invalid");
     assert(config["sub-rules"]["ad-filter"][0] === "RULE-SET,ad-allowlist,PASS", "Allowlist must run before anti-AD");
     assert(config["sub-rules"]["ad-filter"][1] === "RULE-SET,anti-ad,🛡️ 广告拦截", "anti-AD sub-rule is invalid");
+    assert(config.rules[0] === "DST-PORT,15910,DIRECT", "UWS port 15910 must be the first rule");
+    assert(config.rules.includes("DST-PORT,33443,DIRECT"), "UWS port 33443 direct rule is missing");
+    assert(config.rules.includes("DST-PORT,34443,DIRECT"), "UWS port 34443 direct rule is missing");
+    assert(config.rules.includes("PROCESS-NAME,UWS_Service.exe,DIRECT"), "UWS service direct rule is missing");
+    assert(config.rules.includes("PROCESS-NAME,ClientDesktopService.exe,DIRECT"), "Ruijie desktop service direct rule is missing");
+    for (const sag of ["112.111.6.185/32", "218.66.91.199/32", "183.250.189.235/32"]) {
+      assert(config.tun["route-exclude-address"].includes(sag), `UWS SAG TUN exclusion is missing: ${sag}`);
+    }
   }
 
   assert(Array.isArray(allowlist.payload), "Ad allowlist payload must be an array");
@@ -154,6 +163,10 @@ function main() {
   const adRule = v2ray.find((rule) => rule.remarks && rule.remarks.startsWith("广告拦截"));
   assert(adRule && adRule.outboundTag === "block" && adRule.enabled, "V2rayN ad rule is invalid");
   assert(adRule.domain.includes("geosite:category-ads-all"), "V2rayN ad category is missing");
+  const uwsPortRule = v2ray.find((rule) => rule.remarks === "锐捷 U 空间 SAG 端口直连");
+  const uwsAddressRule = v2ray.find((rule) => rule.remarks === "锐捷 U 空间 SAG 地址直连");
+  assert(uwsPortRule && uwsPortRule.outboundTag === "direct" && uwsPortRule.port === "15910,33443,34443", "V2rayN UWS port rule is invalid");
+  assert(uwsAddressRule && uwsAddressRule.outboundTag === "direct" && uwsAddressRule.ip.length === 3, "V2rayN UWS address rule is invalid");
 
   validateReadmeLinks();
   validateTrackedContent();

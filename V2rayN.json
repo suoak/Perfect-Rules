@@ -1,6 +1,22 @@
 [
   {
     "outboundTag": "direct",
+    "port": "15910,33443,34443",
+    "enabled": true,
+    "remarks": "锐捷 U 空间 SAG 端口直连"
+  },
+  {
+    "outboundTag": "direct",
+    "ip": [
+      "112.111.6.185/32",
+      "218.66.91.199/32",
+      "183.250.189.235/32"
+    ],
+    "enabled": true,
+    "remarks": "锐捷 U 空间 SAG 地址直连"
+  },
+  {
+    "outboundTag": "direct",
     "domain": [
       "domain:ruijie.com.cn",
       "domain:ruijie.com",

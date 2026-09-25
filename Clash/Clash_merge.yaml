@@ -26,7 +26,7 @@ tun:
   dns-hijack:
     - any:53
     - tcp://any:53
-  # 私网流量交还系统路由，由本地网络或飞连处理
+  # 私网及 U 空间 SAG 流量交还系统路由，避免专有 QUIC/RUTP 被 TUN 改写
   route-exclude-address:
     - 10.0.0.0/8
     - 100.64.0.0/10
@@ -34,6 +34,9 @@ tun:
     - 169.254.0.0/16
     - 172.16.0.0/12
     - 192.168.0.0/16
+    - 112.111.6.185/32
+    - 218.66.91.199/32
+    - 183.250.189.235/32
 
 dns:
   enable: true
@@ -234,6 +237,17 @@ proxy-groups:
     max-failed-times: 3
 
 rules:
+  # 锐捷 U 空间使用裸 IP 和动态 SAG 地址；端口规则用于覆盖无法识别进程或 GeoIP 误判的连接
+  - DST-PORT,15910,DIRECT
+  - DST-PORT,33443,DIRECT
+  - DST-PORT,34443,DIRECT
+  - PROCESS-NAME,UWS_Client.exe,DIRECT
+  - PROCESS-NAME,UWS_Service.exe,DIRECT
+  - PROCESS-NAME,UWS_App.exe,DIRECT
+  - PROCESS-NAME,Launcher_RemoteDesktop.exe,DIRECT
+  - PROCESS-NAME,ESTWidget.exe,DIRECT
+  - PROCESS-NAME,EST-DVC.exe,DIRECT
+  - PROCESS-NAME,ClientDesktopService.exe,DIRECT
   - PROCESS-NAME-WILDCARD,*Feishu*,DIRECT
   - PROCESS-NAME-WILDCARD,*Lark*,DIRECT
   - DOMAIN-SUFFIX,ruijie.com.cn,DIRECT
