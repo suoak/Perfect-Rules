@@ -170,7 +170,7 @@ V2rayN 路由文件只能决定 `direct`、`proxy` 或 `block`，不能在文件
 - 确认 AI 固定组保持手动选择、涵盖各地区及 `-IPV6` 节点，美国地区组只包含美国节点，并检查白名单位于 anti-AD 之前。
 - 校验 V2rayN JSON、README 本地链接、白名单格式和订阅凭据泄漏。
 - 下载固定版本并校验 SHA-256 的 Mihomo，原生测试 JS 和 YAML 合并结果，并覆盖仅日本节点、空订阅、仅直连节点的情况；运行回归测试检查空组实际回退为拒绝。
-- 检查 anti-AD MRS 可以下载且没有超过配置的 5 MiB 上限。
+- 检查 anti-AD MRS 可以下载且没有超过配置的 5 MiB 上限；官网对 GitHub runner 不可用时，改用 anti-AD 官方文档列出的 GitHub 镜像并发出警告。客户端仍使用官网地址。
 
 本地基础校验需要 Node.js 20 或更高版本和 Ruby：
 

@@ -49,7 +49,17 @@ jobs:
       - name: Verify anti-AD availability and size
         shell: bash
         run: |
-          bytes=$(curl --fail --location --retry 3 --silent https://anti-ad.net/mihomo.mrs | wc --bytes)
+          rules_file="$RUNNER_TEMP/anti-ad.mrs"
+          if ! curl --fail --location --retry 3 --show-error --silent \
+            --connect-timeout 10 --max-time 60 --max-filesize 5242880 \
+            https://anti-ad.net/mihomo.mrs --output "$rules_file"; then
+            echo "::warning::anti-ad.net is unavailable from this runner; checking the project's official GitHub mirror"
+            curl --fail --location --retry 3 --show-error --silent \
+              --connect-timeout 10 --max-time 60 --max-filesize 5242880 \
+              https://raw.githubusercontent.com/privacy-protection-tools/anti-ad.github.io/master/docs/mihomo.mrs \
+              --output "$rules_file"
+          fi
+          bytes=$(wc --bytes < "$rules_file")
           test "$bytes" -gt 0
           test "$bytes" -lt 5242880
           echo "anti-AD MRS size: $bytes bytes"
