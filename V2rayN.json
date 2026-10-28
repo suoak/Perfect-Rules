@@ -572,9 +572,12 @@
     "remarks": "中国大陆直连"
   },
   {
-    "port": "0-65535",
     "outboundTag": "proxy",
     "enabled": true,
-    "remarks": "中国大陆以外代理"
+    "remarks": "中国大陆以外代理",
+    "ip": [
+      "0.0.0.0/0",
+      "::/0"
+    ]
   }
 ]

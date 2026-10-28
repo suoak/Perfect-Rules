@@ -38,6 +38,10 @@ jobs:
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Set SUBSCRIPTION_URL and AI_EXPECTED_IP secrets, and AI_PROXY_NAME variable to enable monitoring"
+            if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+              echo "::error::Manual probe requires monitor configuration; no public IP was checked"
+              exit 1
+            fi
           fi
 
       - name: Install pinned Mihomo
@@ -93,3 +97,21 @@ jobs:
         run: |
           echo "::error::AI public IP differs from the configured baseline"
           exit 1
+
+      - name: Report monitoring outcome
+        if: always()
+        env:
+          CONFIGURED: ${{ steps.configuration.outputs.configured }}
+          PROBE_OUTCOME: ${{ steps.probe.outcome }}
+          CHANGED: ${{ steps.probe.outputs.changed }}
+        shell: bash
+        run: |
+          if [[ "$CONFIGURED" != "true" ]]; then
+            echo "AI monitoring is not configured. No public IP was checked." >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$PROBE_OUTCOME" != "success" ]]; then
+            echo "AI public IP probe failed. The exit could not be verified." >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$CHANGED" == "true" ]]; then
+            echo "AI public IP differs from the configured baseline." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The configured node's IPv4 exit matches the baseline for this probe." >> "$GITHUB_STEP_SUMMARY"
+          fi

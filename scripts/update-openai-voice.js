@@ -4,7 +4,6 @@ const path = require("path");
 
 const root = path.resolve(__dirname, "..");
 const sourceUrl = "https://openai.com/chatgpt-voice.json";
-const policy = "🤖 国外 AI";
 
 function replaceRequired(content, pattern, replacement, label) {
   if (!pattern.test(content)) throw new Error(`Could not find ${label} Voice IP block`);
@@ -27,11 +26,11 @@ function prepareUpdates(data, read = (file) => fs.readFileSync(path.join(root, f
   const jsPath = "Clash/Clash_mi.js";
   const yamlPath = "Clash/Clash_merge.yaml";
   const js = replaceRequired(read(jsPath),
-    /(?:    "IP-CIDR,[^"\n]+,🤖 国外 AI,no-resolve",\n)+/,
-    prefixes.map((ip) => `    "IP-CIDR,${ip},${policy},no-resolve",`).join("\n") + "\n", "Clash JS");
+    /(?:        "IP-CIDR,[^,"\n]+,no-resolve",\n)+/,
+    prefixes.map((ip) => `        "IP-CIDR,${ip},no-resolve",`).join("\n") + "\n", "Clash JS");
   const yaml = replaceRequired(read(yamlPath),
-    /(?:  - IP-CIDR,[^\n]+,🤖 国外 AI,no-resolve\n)+/,
-    prefixes.map((ip) => `  - IP-CIDR,${ip},${policy},no-resolve`).join("\n") + "\n", "Clash YAML");
+    /(?:      - IP-CIDR,[^,\n]+,no-resolve\n)+/,
+    prefixes.map((ip) => `      - IP-CIDR,${ip},no-resolve`).join("\n") + "\n", "Clash YAML");
   const v2ray = JSON.parse(read("V2rayN.json"));
   const aiRule = v2ray.find((rule) => rule.remarks && rule.remarks.includes("OpenAI"));
   if (!aiRule) throw new Error("Could not find V2rayN AI rule");

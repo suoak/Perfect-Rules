@@ -33,6 +33,8 @@ function same(actual, expected, label) {
   );
 }
 
+let providerJsConfig;
+
 function loadJsConfig() {
   const names = [
     "US006", "US001", "US002", "US003", "US004", "US005",
@@ -62,12 +64,12 @@ function loadJsConfig() {
     ["DE001"]
   ]) {
     const config = context.mainFn({ proxies: scenario.map((name) => ({ name, type: "ss" })) });
-    same(Array.from(aiChoices(config)), scenario, "AI candidates without exact US006");
+    same(Array.from(aiChoices(config)), ["REJECT", ...scenario], "AI candidates without exact US006");
   }
   const withDirect = context.mainFn({ proxies: [
     { name: "direct-node", type: "direct" }, { name: "JP001", type: "ss" }
   ] });
-  same(Array.from(aiChoices(withDirect)), ["JP001"], "AI candidates excluding direct adapters");
+  same(Array.from(aiChoices(withDirect)), ["REJECT", "JP001"], "AI candidates excluding direct adapters");
   let rejectedEmpty = false;
   try {
     context.mainFn({ proxies: [] });
@@ -75,6 +77,11 @@ function loadJsConfig() {
     rejectedEmpty = /没有可用节点/.test(error.message);
   }
   assert(rejectedEmpty, "Clash JS must reject subscriptions without usable nodes");
+  providerJsConfig = context.mainFn({ proxies: [], "proxy-providers": {
+    subscription: { type: "inline", payload: proxies }
+  } });
+  const providerAI = providerJsConfig["proxy-groups"].find((group) => group.name === "🔒 AI 固定出口");
+  assert(providerAI["include-all-providers"] && providerAI.proxies[0] === "REJECT", "Provider-only AI group must retain a reject guard");
   return context.mainFn({ proxies });
 }
 
@@ -162,20 +169,25 @@ function main() {
     assert(ai && ai.type === "select", "AI exit must remain manually selected");
     assert(us && us.type === "select", "US region must remain manually selected");
     if (config === jsConfig) {
-      assert(ai.proxies[0] === "US006", "Prefer exact US006 when available");
-      same(Array.from(ai.proxies), config.proxies.map((proxy) => proxy.name), "All-region AI candidates");
+      assert(ai.proxies[0] === "REJECT", "AI exit must reject if a saved node disappears");
+      same(Array.from(ai.proxies), ["REJECT", ...config.proxies.map((proxy) => proxy.name)], "All-region AI candidates");
       for (const name of ["JP001", "SG001", "KOR01", "DE001", "US006-IPV6", "US005-IPV6"]) {
         assert(ai.proxies.includes(name), `AI exit is missing ${name}`);
       }
       assert(us.proxies.every((name) => /^US/i.test(name)), "US region must contain only US nodes");
       same(Array.from(automatic.proxies), config.proxies.map((proxy) => proxy.name), "Automatic candidates");
     } else {
-      assert(ai["include-all-proxies"] && !ai.filter && !ai.proxies, "Static AI exit must dynamically include all regions");
+      assert(ai["include-all-proxies"] && !ai.filter && JSON.stringify(ai.proxies) === JSON.stringify(["REJECT"]), "Static AI exit must dynamically include all regions");
       assert(ai["exclude-type"] === "Direct|Compatible", "Static AI exit must exclude direct adapters");
       assert(us["include-all-proxies"] && us.filter === "(?i)^(US|USA|美国|🇺🇸)", "Static US region must filter US nodes");
       assert(automatic["include-all-proxies"] && !automatic["exclude-filter"] && !automatic.proxies, "Static automatic selection must include all nodes");
     }
-    assert(ads && JSON.stringify(ads.proxies) === JSON.stringify(["REJECT", "DIRECT"]), "Ad switch is invalid");
+    assert(ai["include-all-providers"], "AI exit must include proxy providers");
+    assert(automatic["include-all-providers"], "Automatic selection must include proxy providers");
+    assert(config.rules.indexOf("AND,((NETWORK,udp),(RULE-SET,ai-services)),REJECT") === config.rules.indexOf("RULE-SET,ai-services,🤖 国外 AI") + 1, "Unsupported AI UDP must be rejected before other exits");
+    assert(config.rules.includes("GEOIP,cn,DIRECT") && !config.rules.includes("GEOIP,cn,DIRECT,no-resolve"), "China IP fallback must resolve unmatched domains");
+    assert(config["rule-providers"]["ad-allowlist"].proxy === "📥 规则更新" && config["rule-providers"]["anti-ad"].proxy === "📥 规则更新", "Rule downloads must use the dedicated selection");
+    assert(ads && JSON.stringify(ads.proxies) === JSON.stringify(["REJECT", "PASS"]), "Ad switch is invalid");
     assert(config["sub-rules"]["ad-filter"][0] === "RULE-SET,ad-allowlist,PASS", "Allowlist must run before anti-AD");
     assert(config["sub-rules"]["ad-filter"][1] === "RULE-SET,anti-ad,🛡️ 广告拦截", "anti-AD sub-rule is invalid");
     assert(!config.rules.some((rule) => /^DST-PORT,(15910|33443|34443),DIRECT$/.test(rule)), "UWS ports must not bypass routing for all destinations");
@@ -197,6 +209,7 @@ function main() {
     "Ad allowlist entries must be individual domains"
   );
 
+  assert(!v2ray[v2ray.length - 1].port && JSON.stringify(v2ray[v2ray.length - 1].ip) === JSON.stringify(["0.0.0.0/0", "::/0"]), "V2rayN final rule must permit IPIfNonMatch DNS retry");
   const adRule = v2ray.find((rule) => rule.remarks && rule.remarks.startsWith("广告拦截"));
   assert(adRule && adRule.outboundTag === "block" && adRule.enabled, "V2rayN ad rule is invalid");
   assert(adRule.domain.includes("geosite:category-ads-all"), "V2rayN ad category is missing");
@@ -205,7 +218,7 @@ function main() {
   assert(uwsAddressRule && uwsAddressRule.outboundTag === "direct" && uwsAddressRule.ip.length === 3, "V2rayN UWS address rule is invalid");
 
   const voiceIps = v2ray.find((rule) => rule.remarks && rule.remarks.includes("OpenAI")).ip;
-  const clashVoiceIps = jsConfig.rules.filter((rule) => /^IP-CIDR,.*?,🤖 国外 AI,no-resolve$/.test(rule))
+  const clashVoiceIps = jsConfig["rule-providers"]["ai-services"].payload.filter((rule) => /^IP-CIDR,[^,]+,no-resolve$/.test(rule))
     .map((rule) => rule.split(",")[1]);
   same(clashVoiceIps, voiceIps, "Voice IPv4 lists");
   assert(new Set(voiceIps).size === voiceIps.length, "Duplicate Voice IP rules");
@@ -217,10 +230,12 @@ function main() {
   nativeTest({ ...yamlConfig, proxies: jsConfig.proxies.filter((proxy) => proxy.name === "JP001") }, "yaml-japan-only");
   nativeTest({ ...yamlConfig, proxies: [] }, "yaml-empty-subscription");
   nativeTest({ ...yamlConfig, proxies: [{ name: "direct-only", type: "direct" }] }, "yaml-direct-only");
-  if (process.env.MIHOMO_BIN) console.log("Mihomo native validation passed: 5 complete configurations");
+  nativeTest(providerJsConfig, "js-provider-only");
+  nativeTest({ ...yamlConfig, proxies: [], "proxy-providers": { subscription: { type: "inline", payload: jsConfig.proxies } } }, "yaml-provider-only");
+  if (process.env.MIHOMO_BIN) console.log("Mihomo native validation passed: 7 complete configurations");
   else console.log("Mihomo native tests skipped: set MIHOMO_BIN to enable them");
 
-  console.log(`Configuration validation passed: ${jsConfig.rules.length} Clash rules, ${v2ray.length} V2rayN rules`);
+  console.log(`Configuration validation passed: ${jsConfig.rules.length} Clash rules, ${jsConfig["rule-providers"]["ai-services"].payload.length} AI matchers, ${v2ray.length} V2rayN rules`);
 }
 
 try {

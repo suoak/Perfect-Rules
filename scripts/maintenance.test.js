@@ -14,8 +14,8 @@ const sample = { creationTime: "2026-10-27T22:28:21Z", prefixes: [{ ipv4Prefix: 
 
 test("Voice updates keep all formats and README count/date in sync", () => {
   const { files } = prepareUpdates(sample);
-  assert.match(files["Clash/Clash_mi.js"], /IP-CIDR,192\.0\.2\.1\/32,🤖 国外 AI,no-resolve/);
-  assert.match(files["Clash/Clash_merge.yaml"], /IP-CIDR,192\.0\.2\.1\/32,🤖 国外 AI,no-resolve/);
+  assert.match(files["Clash/Clash_mi.js"], /IP-CIDR,192\.0\.2\.1\/32,no-resolve/);
+  assert.match(files["Clash/Clash_merge.yaml"], /IP-CIDR,192\.0\.2\.1\/32,no-resolve/);
   assert.deepEqual(JSON.parse(files["V2rayN.json"]).find((r) => r.remarks?.includes("OpenAI")).ip, ["192.0.2.1/32"]);
   assert.match(files["README.md"], /ChatGPT Voice 的 1 个官方 IPv4 地址/);
   assert.match(files["README.md"], /生成时间为 2026-10-27/);
@@ -150,7 +150,8 @@ test("Mihomo runtime rejects empty AI and region groups", { skip: !process.env.M
           }
         }
         if (proxies.some((p) => p.type === "ss")) {
-          assert.deepEqual(groups["🔒 AI 固定出口"].all, ["JP001"]);
+          assert.deepEqual(groups["🔒 AI 固定出口"].all, ["REJECT", "JP001"]);
+          assert.equal(groups["🔒 AI 固定出口"].now, "REJECT");
           assert.deepEqual(groups["🇺🇸 美国节点"].all, ["REJECT"]);
         }
       } finally {
