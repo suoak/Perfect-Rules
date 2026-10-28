@@ -99,7 +99,7 @@ function validateTrackedContent() {
   ];
   for (const file of files) {
     const fullPath = path.join(root, file);
-    if (!fs.statSync(fullPath).isFile()) continue;
+    if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) continue;
     const content = fs.readFileSync(fullPath, "utf8");
     assert(
       !credentialPatterns.some((pattern) => pattern.test(content)),
@@ -108,22 +108,31 @@ function validateTrackedContent() {
   }
 }
 
-function nativeTest(config) {
+const nativeTemp = process.env.MIHOMO_BIN ? fs.mkdtempSync(path.join(os.tmpdir(), "perfect-rules-")) : null;
+
+function nativeTest(config, label) {
   const binary = process.env.MIHOMO_BIN;
   if (!binary) return;
 
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "perfect-rules-"));
-  const configPath = path.join(temp, "config.json");
+  const temp = nativeTemp;
+  if (process.env.MIHOMO_GEODATA_DIR) {
+    const home = path.join(temp, "home");
+    fs.mkdirSync(home, { recursive: true });
+    for (const name of ["Country.mmdb", "geosite.dat", "geoip.dat"]) {
+      const source = path.join(process.env.MIHOMO_GEODATA_DIR, name);
+      if (fs.existsSync(source)) fs.copyFileSync(source, path.join(home, name));
+    }
+  }
+  const configPath = path.join(temp, `${label}.json`);
   fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
   const result = childProcess.spawnSync(
     binary,
     ["-t", "-d", path.join(temp, "home"), "-f", configPath],
     { encoding: "utf8", timeout: 120000 }
   );
-  fs.rmSync(temp, { recursive: true, force: true });
   assert(
     result.status === 0,
-    `Mihomo native validation failed:\n${result.stdout || ""}${result.stderr || ""}`
+    `Mihomo native validation failed (${label}):\n${result.stdout || ""}${result.stderr || ""}`
   );
 }
 
@@ -135,6 +144,9 @@ function main() {
 
   same(jsConfig.rules, yamlConfig.rules, "rules");
   same(jsConfig.tun, yamlConfig.tun, "TUN settings");
+  same(jsConfig.dns, yamlConfig.dns, "DNS settings");
+  same(jsConfig.sniffer, yamlConfig.sniffer, "sniffer settings");
+  same(jsConfig.profile, yamlConfig.profile, "profile settings");
   same(jsConfig["rule-providers"], yamlConfig["rule-providers"], "rule providers");
   same(jsConfig["sub-rules"], yamlConfig["sub-rules"], "sub-rules");
 
@@ -159,19 +171,21 @@ function main() {
       same(Array.from(automatic.proxies), config.proxies.map((proxy) => proxy.name), "Automatic candidates");
     } else {
       assert(ai["include-all-proxies"] && !ai.filter && !ai.proxies, "Static AI exit must dynamically include all regions");
-      assert(ai["exclude-type"] === "Direct", "Static AI exit must exclude direct adapters");
+      assert(ai["exclude-type"] === "Direct|Compatible", "Static AI exit must exclude direct adapters");
       assert(us["include-all-proxies"] && us.filter === "(?i)^(US|USA|美国|🇺🇸)", "Static US region must filter US nodes");
       assert(automatic["include-all-proxies"] && !automatic["exclude-filter"] && !automatic.proxies, "Static automatic selection must include all nodes");
     }
     assert(ads && JSON.stringify(ads.proxies) === JSON.stringify(["REJECT", "DIRECT"]), "Ad switch is invalid");
     assert(config["sub-rules"]["ad-filter"][0] === "RULE-SET,ad-allowlist,PASS", "Allowlist must run before anti-AD");
     assert(config["sub-rules"]["ad-filter"][1] === "RULE-SET,anti-ad,🛡️ 广告拦截", "anti-AD sub-rule is invalid");
-    assert(config.rules[0] === "DST-PORT,15910,DIRECT", "UWS port 15910 must be the first rule");
-    assert(config.rules.includes("DST-PORT,33443,DIRECT"), "UWS port 33443 direct rule is missing");
-    assert(config.rules.includes("DST-PORT,34443,DIRECT"), "UWS port 34443 direct rule is missing");
+    assert(!config.rules.some((rule) => /^DST-PORT,(15910|33443|34443),DIRECT$/.test(rule)), "UWS ports must not bypass routing for all destinations");
+    for (const group of config["proxy-groups"]) {
+      assert(group["empty-fallback"] === "REJECT", `Empty group must reject: ${group.name}`);
+    }
     assert(config.rules.includes("PROCESS-NAME,UWS_Service.exe,DIRECT"), "UWS service direct rule is missing");
     assert(config.rules.includes("PROCESS-NAME,ClientDesktopService.exe,DIRECT"), "Ruijie desktop service direct rule is missing");
     for (const sag of ["112.111.6.185/32", "218.66.91.199/32", "183.250.189.235/32"]) {
+      assert(config.rules.includes(`IP-CIDR,${sag},DIRECT,no-resolve`), `UWS SAG direct rule is missing: ${sag}`);
       assert(config.tun["route-exclude-address"].includes(sag), `UWS SAG TUN exclusion is missing: ${sag}`);
     }
   }
@@ -186,15 +200,25 @@ function main() {
   const adRule = v2ray.find((rule) => rule.remarks && rule.remarks.startsWith("广告拦截"));
   assert(adRule && adRule.outboundTag === "block" && adRule.enabled, "V2rayN ad rule is invalid");
   assert(adRule.domain.includes("geosite:category-ads-all"), "V2rayN ad category is missing");
-  const uwsPortRule = v2ray.find((rule) => rule.remarks === "锐捷 U 空间 SAG 端口直连");
+  assert(!v2ray.some((rule) => rule.port === "15910,33443,34443"), "V2rayN must not globally bypass UWS ports");
   const uwsAddressRule = v2ray.find((rule) => rule.remarks === "锐捷 U 空间 SAG 地址直连");
-  assert(uwsPortRule && uwsPortRule.outboundTag === "direct" && uwsPortRule.port === "15910,33443,34443", "V2rayN UWS port rule is invalid");
   assert(uwsAddressRule && uwsAddressRule.outboundTag === "direct" && uwsAddressRule.ip.length === 3, "V2rayN UWS address rule is invalid");
 
+  const voiceIps = v2ray.find((rule) => rule.remarks && rule.remarks.includes("OpenAI")).ip;
+  const clashVoiceIps = jsConfig.rules.filter((rule) => /^IP-CIDR,.*?,🤖 国外 AI,no-resolve$/.test(rule))
+    .map((rule) => rule.split(",")[1]);
+  same(clashVoiceIps, voiceIps, "Voice IPv4 lists");
+  assert(new Set(voiceIps).size === voiceIps.length, "Duplicate Voice IP rules");
   validateReadmeLinks();
   validateTrackedContent();
   childProcess.execFileSync("git", ["diff", "--check"], { cwd: root, stdio: "inherit" });
-  nativeTest(jsConfig);
+  nativeTest(jsConfig, "js-full");
+  nativeTest({ ...yamlConfig, proxies: jsConfig.proxies }, "yaml-merged-full");
+  nativeTest({ ...yamlConfig, proxies: jsConfig.proxies.filter((proxy) => proxy.name === "JP001") }, "yaml-japan-only");
+  nativeTest({ ...yamlConfig, proxies: [] }, "yaml-empty-subscription");
+  nativeTest({ ...yamlConfig, proxies: [{ name: "direct-only", type: "direct" }] }, "yaml-direct-only");
+  if (process.env.MIHOMO_BIN) console.log("Mihomo native validation passed: 5 complete configurations");
+  else console.log("Mihomo native tests skipped: set MIHOMO_BIN to enable them");
 
   console.log(`Configuration validation passed: ${jsConfig.rules.length} Clash rules, ${v2ray.length} V2rayN rules`);
 }
@@ -204,4 +228,6 @@ try {
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;
+} finally {
+  if (nativeTemp) fs.rmSync(nativeTemp, { recursive: true, force: true });
 }

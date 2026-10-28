@@ -24,9 +24,9 @@
 5. 中国大陆域名和 IP 直连。
 6. 其余流量全部走 `🚀 代理选择`。
 
-AI 策略组不提供 `DIRECT`。所有 AI 域名先统一进入 `🤖 国外 AI`，再由 `🔒 AI 固定出口` 使用同一个具体节点；JS 覆写优先选择 `US006`（不存在时使用订阅首个可用节点），YAML 首次使用订阅首个候选，避免登录、API、上传和静态资源分别使用不同国家或出口 IP。选择会通过 `store-selected` 持久保存，网络切换和配置刷新不会自动改变。
+AI 策略组不提供 `DIRECT`。所有 AI 域名先统一进入 `🤖 国外 AI`，再由 `🔒 AI 固定出口` 使用同一个具体节点；JS 覆写优先选择 `US006`（不存在时使用订阅首个可用节点），YAML 首次使用按名称排序后的首个候选，避免登录、API、上传和静态资源分别使用不同国家或出口 IP。选择会通过 `store-selected` 持久保存，节点名称仍存在且客户端保留缓存时，网络切换和配置刷新会保留选择。固定节点不等于固定公网 IP，服务商仍可能调整出口；节点被删除、改名或选择缓存丢失后必须重新确认。
 
-AI 固定出口动态列出所有地区的订阅代理节点，包括 `US006-IPV6`、`US005-IPV6`，不包含直连、故障转移、地区测速或自动选择。请手动选择一个可用节点并保持固定；节点不可用时可选择其他地区的节点，并在切换后重新登录相关 AI 账号。节点名称包含 `IPV6` 不会自动开启配置中的 IPv6。
+AI 固定出口动态列出所有地区的订阅代理节点，包括 `US006-IPV6`、`US005-IPV6`，不包含直连、故障转移、地区测速或自动选择。请手动选择一个可用节点并保持固定；节点不可用时可选择其他地区的节点，并在切换后重新登录相关 AI 账号。节点名称包含 `IPV6` 不会自动开启配置中的 IPv6，也不代表该节点在当前网络上一定可用。所有代理组为空时均使用 `REJECT`，不会回退直连。
 
 `🇺🇸 美国节点` 仅列出美国节点，与 AI 固定出口独立。普通流量的自动选择使用各地区原始节点；AI 域名及其显式依赖规则统一使用 AI 固定出口。
 
@@ -34,15 +34,15 @@ AI 固定出口动态列出所有地区的订阅代理节点，包括 `US006-IPV
 
 飞书和 Lark 同时使用进程、明确的品牌域名、会议主机及 GeoSite 直连规则，覆盖消息、文档、开放平台、文件、会议、RTC 和静态资源。规则不再直连整个字节海外 CDN 根域，避免 TikTok 等非飞书服务被误分流。相关域名使用系统 DNS 并绕过 Fake-IP，确保在公司、家庭及飞连环境中使用本地网络出口。
 
-ChatGPT Voice 的 23 个官方 IPv4 地址已固定到 AI 出口，地址快照来自 OpenAI `chatgpt-voice.json`，生成时间为 2026-03-26。OpenAI 会动态更新该列表，后续维护配置时需要重新核对。访问 `https://api.ipify.org` 会强制经过 AI 固定出口，可用于确认当前公网 IP 是否仍然稳定。
+ChatGPT Voice 的 402 个官方 IPv4 地址已固定到 AI 出口，地址快照来自 OpenAI `chatgpt-voice.json`，生成时间为 2026-10-27。OpenAI 会动态更新该列表，后续维护配置时需要重新核对。访问 `https://api.ipify.org` 会强制经过 AI 固定出口，可用于确认当前公网 IP 是否仍然稳定。
 
-运行 `node scripts/update-openai-voice.js` 可以从 OpenAI 官方地址重新获取 Voice IP，并同步更新三套配置及快照日期。脚本会校验响应内容，异常时不会用空列表覆盖现有规则。
+运行 `node scripts/update-openai-voice.js` 可以从 OpenAI 官方地址重新获取 Voice IP，并同步更新三套配置及快照日期。脚本会校验 CIDR、重复项和快照日期，并在写入前准备全部输出，避免格式异常或规则块缺失时留下部分更新。`node scripts/update-openai-voice.js --check` 只检查是否过期，不修改文件；GitHub 每天北京时间约 09:43 自动检查，过期时工作流失败提醒维护。
 
 ## 广告拦截
 
 Clash 使用 anti-AD 官方提供的 Mihomo MRS 规则集匹配广告和跟踪域名，并通过 `🛡️ 广告拦截` 策略组控制。默认选择 `REJECT` 立即拒绝广告请求；遇到登录、支付、验证码或应用功能异常时，可临时切换为 `DIRECT` 排查，无需修改配置。
 
-规则集通过 `https://anti-ad.net/mihomo.mrs` 直连下载，缓存在 Mihomo Home 目录的 `ruleset/anti-ad.mrs`，每 24 小时检查一次更新，并限制最大下载体积为 5 MiB。首次使用需要 Mihomo `1.18.7` 或更高版本；规则下载失败时应先检查客户端日志和本地网络，不要把下载流量改到 AI 固定出口。
+规则集通过 `https://anti-ad.net/mihomo.mrs` 直连下载，缓存在 Mihomo Home 目录的 `ruleset/anti-ad.mrs`，每 24 小时检查一次更新，并限制最大下载体积为 5 MiB。本仓库使用 Mihomo `1.19.31` 验证，建议使用该版本或更新内核；规则下载失败时应先检查客户端日志和本地网络，不要把下载流量改到 AI 固定出口。
 
 广告规则位于公司、飞书、AI 和开发服务之后，这些关键业务会优先匹配，不会被广告规则抢占。配置不叠加多个第三方广告列表，也不使用宽泛的域名关键词，以降低误拦截风险。域名级规则无法可靠屏蔽与正文共用域名、服务端插入或客户端内嵌的广告。
 
@@ -79,9 +79,9 @@ V2rayN 暂时继续使用客户端原生的 `geosite:category-ads-all` 独立 `b
 
 U 空间除了访问 `ruijie.com.cn` 域名，还会通过裸 IP 连接 SAG 安全访问网关，并使用 `15910`、`33443`、`34443` 等端口建立 TCP、UDP、QUIC/RUTP 通道。只依赖 `GEOIP,cn` 可能使部分网关被误送到代理出口，造成登录正常但远程桌面无法建立。
 
-- Clash 会优先将上述三个端口和 UWS 核心进程设为 `DIRECT`。
+- Clash 优先将 UWS 核心进程和明确的 SAG 地址设为 `DIRECT`，不会仅凭目标端口让其他应用直连。
 - 当前账号下发的 `112.111.6.185`、`218.66.91.199`、`183.250.189.235` 三个 SAG 地址会绕过 TUN，避免专有远程桌面通道被虚拟网卡改写。
-- V2rayN 同样显式直连这些端口和 SAG 地址，不再只依赖 GeoIP 数据库。
+- V2rayN 显式直连上述 SAG 地址，不再按三个端口对所有应用放行；出现新网关时需要补充地址。
 - 如果云小桌以后显示了新的安全网关地址，应同步补充到 Clash 的 `route-exclude-address` 和 V2rayN 的 U 空间规则中。
 - 修改或刷新配置后应重启 U 空间；在 Clash 日志中确认 UWS 连接显示 `DIRECT`，且不再出现 `US006` 等代理节点。
 
@@ -89,7 +89,7 @@ U 空间除了访问 `ruijie.com.cn` 域名，还会通过裸 IP 连接 SAG 安�
 
 ### 使用前准备
 
-- 准备使用 Mihomo `1.18.7` 或更高内核并支持覆写的 Clash 客户端，或使用支持自定义路由规则集的 V2rayN。
+- 准备使用 Mihomo `1.19.31` 或更高内核并支持覆写的 Clash 客户端，或使用支持自定义路由规则集的 V2rayN。
 - 在客户端中单独添加自己的订阅，不要把订阅地址、令牌或生成后的完整节点信息提交到仓库。
 - Clash 配置要求订阅中至少存在一个可用代理节点，不要求美国节点；JS 覆写找不到 `US006` 时会退回订阅首个可用节点。YAML 自动纳入订阅节点，无需手动维护 AI 固定组的节点名称。
 - 同一台设备只启用一个负责系统代理或 TUN 的客户端，避免 Clash、V2rayN、其他代理软件互相改写路由和 DNS。
@@ -149,13 +149,13 @@ V2rayN 路由文件只能决定 `direct`、`proxy` 或 `block`，不能在文件
 | 公司系统无法访问 | 确认飞连先于代理启动，并检查目标是否命中 `DIRECT`；只补充实际缺失的公司域名或 CIDR。 |
 | `gstatic.com` 无法访问 | 确认命中 `🤖 国外 AI`，刷新客户端 DNS 缓存，并检查浏览器是否指定了独立安全 DNS。 |
 | 开启广告拦截后页面变慢 | 将 `🛡️ 广告拦截` 切到 `DIRECT`；若恢复正常，再从连接日志定位 anti-AD 误拦截的域名。 |
-| 日志提示 anti-AD 下载失败 | 确认能直连访问 `anti-ad.net`、内核版本不低于 `1.18.7`，然后在客户端更新规则提供器或重新加载配置。 |
+| 日志提示 anti-AD 下载失败 | 确认能直连访问 `anti-ad.net`、内核版本不低于 `1.19.31`，然后在客户端更新规则提供器或重新加载配置。 |
 | 广告仍然存在 | 域名规则无法处理同域广告、服务端插入广告和网页元素隐藏，这是预期限制。 |
 | 切换公司和家庭网络后断网 | 重新连接 TUN；仍未恢复时先关闭 TUN，确认基础网络正常后再启动。 |
 
 ### 配置维护
 
-- 每月运行一次 `node scripts/update-openai-voice.js`，更新 ChatGPT Voice 官方 IP。
+- 官方 Voice 列表每天自动检查；过期时运行 `node scripts/update-openai-voice.js`，校验后提交更新。
 - anti-AD 由 Mihomo 每 24 小时自动更新；不要把下载后的 MRS 缓存提交到仓库。
 - 订阅节点名称发生变化后，优先检查已选定的 AI 固定节点是否仍然存在，以及四个地区组是否仍能正确匹配。
 - 新增直连或 AI 域名时，应放在广告规则之前；不要把整个公共 CDN 根域直接放行。
@@ -166,34 +166,38 @@ V2rayN 路由文件只能决定 `direct`、`proxy` 或 `block`，不能在文件
 
 [`Validate configuration`](./.github/workflows/validate.yml) 会在每次 push、Pull Request 和手动触发时运行。它会：
 
-- 比较 Clash JS 与 YAML 的规则、规则提供器、子规则和策略组名称。
+- 比较 Clash JS 与 YAML 的规则、DNS、TUN、嗅探、缓存、规则提供器、子规则和策略组名称。
 - 确认 AI 固定组保持手动选择、涵盖各地区及 `-IPV6` 节点，美国地区组只包含美国节点，并检查白名单位于 anti-AD 之前。
 - 校验 V2rayN JSON、README 本地链接、白名单格式和订阅凭据泄漏。
-- 下载固定版本并校验 SHA-256 的 Mihomo，在临时目录执行原生 `-t` 配置测试。
+- 下载固定版本并校验 SHA-256 的 Mihomo，原生测试 JS 和 YAML 合并结果，并覆盖仅日本节点、空订阅、仅直连节点的情况；运行回归测试检查空组实际回退为拒绝。
 - 检查 anti-AD MRS 可以下载且没有超过配置的 5 MiB 上限。
 
-本地基础校验只需要 Node.js 和 Ruby：
+本地基础校验需要 Node.js 20 或更高版本和 Ruby：
 
 ```bash
+node --test scripts/maintenance.test.js
 node scripts/validate-config.js
 ```
 
-设置 `MIHOMO_BIN=/path/to/mihomo` 后运行同一命令，会额外执行 Mihomo 原生配置测试。
+设置 `MIHOMO_BIN=/path/to/mihomo` 后运行同一命令，会额外执行 Mihomo 原生配置测试；给测试命令也设置该变量可检查空组运行时行为。没有设置时会明确显示跳过。若本地网络无法下载 GEO 数据，可设置 `MIHOMO_GEODATA_DIR` 指向含 `Country.mmdb`、`geosite.dat` 等文件的现有目录，校验只将数据复制到临时目录。
 
-## US006 出口提醒
+## AI 固定出口提醒
 
-[`Monitor US006 public IP`](./.github/workflows/monitor-us006.yml) 每天北京时间约 09:23 运行，也可以在 Actions 页面手动触发。它会临时启动 Mihomo，从订阅中只选择名称完全等于 `US006` 的节点，再通过该节点查询真实公网 IP。
+[`Monitor AI public IP`](./.github/workflows/monitor-ai.yml) 每天北京时间约 09:23 运行，也可以在 Actions 页面手动触发。它会临时启动 Mihomo，精确选择配置的节点并确认选择成功，再查询公网 IP；节点不存在时会失败，不会用直连结果代替。
 
-在仓库的 `Settings` -> `Secrets and variables` -> `Actions` 中添加两个 Repository secrets：
+在仓库的 `Settings` -> `Secrets and variables` -> `Actions` 中设置：
 
-| Secret | 内容 |
-| --- | --- |
-| `SUBSCRIPTION_URL` | 完整的 HTTPS Clash 订阅地址，只保存在 Secret 中。 |
-| `US006_EXPECTED_IP` | 在可信设备上固定使用 US006 访问 `https://api.ipify.org` 得到的当前公网 IP。 |
+| 类型 | 名称 | 内容 |
+| --- | --- | --- |
+| Repository variable | `AI_PROXY_NAME` | 客户端当前 AI 固定节点的完整名称，例如 `JP001`、`US006-IPV6`；未设置时默认为 `US006`。 |
+| Repository secret | `SUBSCRIPTION_URL` | 完整的 HTTPS Clash 订阅地址。 |
+| Repository secret | `AI_EXPECTED_IP` | 在可信设备上通过该节点访问 `https://api.ipify.org` 得到的公网 IP。 |
 
-配置后手动运行一次工作流。出口一致时不会创建内容；出口变化时工作流会创建标题为“US006 公网 IP 已变化”的 Issue 并失败，以触发 GitHub 通知。真实 IP 和订阅地址会被掩码，不写入公开日志或 Issue。确认新出口可信后更新 `US006_EXPECTED_IP` 并重新运行，提醒 Issue 会自动关闭。
+仅当监控节点为 `US006` 且未配置 `AI_EXPECTED_IP` 时，兼容旧 Secret `US006_EXPECTED_IP`。其他节点必须使用新的基准，防止将不同节点的 IP 相互比较。
 
-监控只负责提醒，不会自动接受新 IP、修改 Secret 或切换 AI 节点。这样可以避免机场临时调度被静默当作可信出口。
+配置后手动运行一次工作流。出口变化时工作流创建“AI 固定出口公网 IP 已变化”提醒 Issue 并失败。真实 IP 和订阅地址不写入公开日志或 Issue。确认新出口可信后更新基准 Secret 并重新运行，提醒会自动关闭。
+
+GitHub 无法读取客户端当前选择：每次手动切换 AI 节点后，需要同步更新 `AI_PROXY_NAME` 和 `AI_EXPECTED_IP`。监控只负责提醒，不会自动接受新 IP、修改 Secret 或切换客户端节点。旧工作流留下的 US006 提醒 Issue 需手动核实后处理。
 
 ## 设计取舍
 

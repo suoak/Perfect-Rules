@@ -4,6 +4,8 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "43 1 * * *"
 
 permissions:
   contents: read
@@ -29,6 +31,15 @@ jobs:
           echo "d5e74bbddbdfff49a1aef7775bf5911da59f0d7196ed509a0ac914b3653dd5f1  /tmp/mihomo.gz" | sha256sum --check
           gzip --decompress --stdout /tmp/mihomo.gz > /tmp/mihomo
           chmod +x /tmp/mihomo
+
+      - name: Test maintenance scripts
+        env:
+          MIHOMO_BIN: /tmp/mihomo
+        run: node --test scripts/maintenance.test.js
+
+      - name: Check official Voice snapshot freshness
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: node scripts/update-openai-voice.js --check
 
       - name: Validate all configurations
         env:
