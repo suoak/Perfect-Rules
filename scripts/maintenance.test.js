@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { test } = require("node:test");
 const { prepareUpdates } = require("./update-openai-voice");
-const { monitorSettings, exactFilter, selectProxy } = require("./check-ai-ip");
+const { monitorSettings, exactFilter, selectProxy, reservePorts, probeConfig } = require("./check-ai-ip");
 
 const root = path.resolve(__dirname, "..");
 const sample = { creationTime: "2026-10-27T22:28:21Z", prefixes: [{ ipv4Prefix: "192.0.2.1/32" }] };
@@ -36,7 +36,8 @@ test("Voice malformed responses and missing blocks fail before any write", () =>
 test("Monitor legacy baseline is restricted to US006; node names are literal", () => {
   assert.deepEqual(monitorSettings({ US006_EXPECTED_IP: "192.0.2.1" }), { proxyName: "US006", expectedIp: "192.0.2.1" });
   assert.throws(() => monitorSettings({ AI_PROXY_NAME: "JP001", US006_EXPECTED_IP: "192.0.2.1" }));
-  assert.equal(monitorSettings({ AI_PROXY_NAME: "US006-IPV6", AI_EXPECTED_IP: "2001:db8::1" }).proxyName, "US006-IPV6");
+  assert.equal(monitorSettings({ AI_PROXY_NAME: "US006-IPV6", AI_EXPECTED_IP: "192.0.2.1" }).proxyName, "US006-IPV6");
+  assert.throws(() => monitorSettings({ AI_PROXY_NAME: "US006-IPV6", AI_EXPECTED_IP: "2001:db8::1" }), /IPv4/);
   const name = "JP[01].(test)+?";
   const pattern = new RegExp(exactFilter(name));
   assert(pattern.test(name));
@@ -46,7 +47,9 @@ test("Monitor legacy baseline is restricted to US006; node names are literal", (
 
 test("Monitor selects and verifies the target, rejects missing nodes", async () => {
   let now = "REJECT";
-  let available = ["JP001"];
+  let available = ["REJECT"];
+  let reads = 0;
+  let loading = true;
   const server = http.createServer(async (request, response) => {
     if (request.headers.authorization !== "Bearer test-secret") { response.writeHead(401).end(); return; }
     if (request.method === "PUT") {
@@ -55,6 +58,7 @@ test("Monitor selects and verifies the target, rejects missing nodes", async () 
       now = JSON.parse(body).name;
       response.writeHead(204).end();
     } else {
+      if (loading && ++reads >= 3) available = ["JP001"];
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify({ all: available, now }));
     }
@@ -62,14 +66,34 @@ test("Monitor selects and verifies the target, rejects missing nodes", async () 
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const controller = `http://127.0.0.1:${server.address().port}`;
-    await selectProxy(controller, "test-secret", "JP001", { pid: 1, exitCode: null });
+    await selectProxy(controller, "test-secret", "JP001", { pid: 1, exitCode: null }, { timeoutMs: 2000, retryMs: 10 });
     assert.equal(now, "JP001");
+    assert(reads >= 3, "Must wait for the provider to load");
+    loading = false;
     available = ["REJECT"];
-    await assert.rejects(selectProxy(controller, "test-secret", "US006", { pid: 1, exitCode: null }), /exact configured AI node/);
+    await assert.rejects(selectProxy(controller, "test-secret", "US006", { pid: 1, exitCode: null }, { timeoutMs: 100, retryMs: 10 }), /exact configured AI node/);
   } finally {
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+test("Monitor allocates distinct local ports and configures per-run authentication", async () => {
+  const occupied = http.createServer();
+  await new Promise((resolve) => occupied.listen(0, "127.0.0.1", resolve));
+  try {
+    const ports = await reservePorts();
+    assert(ports.proxyPort > 0 && ports.controllerPort > 0);
+    assert.notEqual(ports.proxyPort, ports.controllerPort);
+    assert.notEqual(ports.proxyPort, occupied.address().port);
+    assert.notEqual(ports.controllerPort, occupied.address().port);
+    const config = probeConfig("https://subscription.invalid/", "US006-IPV6", "test-secret", ports);
+    assert.equal(config["mixed-port"], ports.proxyPort);
+    assert.equal(config["external-controller"], `127.0.0.1:${ports.controllerPort}`);
+    assert.deepEqual(config.authentication, ["ai-monitor:test-secret"]);
+    assert.equal(config["proxy-groups"][0].filter, "^US006-IPV6$");
+    assert.equal(config["proxy-groups"][0]["empty-fallback"], "REJECT");
+  } finally { await new Promise((resolve) => occupied.close(resolve)); }
 });
 
 test("Monitor startup errors finish without exposing subscription credentials", () => {
@@ -142,4 +166,47 @@ test("Mihomo runtime rejects empty AI and region groups", { skip: !process.env.M
       }
     }
   } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("Mihomo monitor uses the configured provider node and rejects unauthenticated proxy requests", { skip: !process.env.MIHOMO_BIN }, async () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "perfect-rules-monitor-"));
+  const ports = await reservePorts();
+  const secret = crypto.randomBytes(16).toString("hex");
+  const config = probeConfig("https://subscription.invalid/", "US006-IPV6", secret, ports);
+  const provider = path.join(temp, "subscription.json");
+  fs.writeFileSync(provider, JSON.stringify({ proxies: [{ name: "US006-IPV6", type: "ss",
+    server: "127.0.0.1", port: 1, cipher: "aes-128-gcm", password: "validation-only" }] }));
+  config["proxy-providers"].subscription = { type: "file", path: provider };
+  const file = path.join(temp, "config.json");
+  fs.writeFileSync(file, JSON.stringify(config));
+  const core = childProcess.spawn(process.env.MIHOMO_BIN, ["-d", temp, "-f", file], { stdio: "ignore" });
+  let spawnError;
+  core.on("error", (error) => { spawnError = error; });
+  try {
+    await selectProxy(`http://127.0.0.1:${ports.controllerPort}`, secret, "US006-IPV6", core);
+    const proxyStatus = (authorization) => new Promise((resolve, reject) => {
+      const request = http.request({ host: "127.0.0.1", port: ports.proxyPort, method: "CONNECT",
+        path: "127.0.0.1:1", headers: authorization ? { "Proxy-Authorization": authorization } : {} });
+      request.once("connect", (response, socket) => { socket.destroy(); resolve(response.statusCode); });
+      request.once("response", (response) => { response.resume(); resolve(response.statusCode); });
+      request.once("error", reject);
+      request.setTimeout(2000, () => request.destroy(new Error("Local proxy test timed out")));
+      request.end();
+    });
+    assert.equal(await proxyStatus(), 407);
+    assert.equal(await proxyStatus(`Basic ${Buffer.from(`ai-monitor:${secret}`).toString("base64")}`), 200);
+  } finally {
+    const exited = new Promise((resolve) => {
+      if (!core.pid || core.exitCode !== null || spawnError) return resolve();
+      core.once("exit", resolve);
+      core.once("error", resolve);
+    });
+    if (core.pid && core.exitCode === null) core.kill("SIGTERM");
+    const timer = setTimeout(() => {
+      if (core.pid && core.exitCode === null) core.kill("SIGKILL");
+    }, 2000);
+    await exited;
+    clearTimeout(timer);
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
 });

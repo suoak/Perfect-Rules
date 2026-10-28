@@ -183,7 +183,7 @@ node scripts/validate-config.js
 
 ## AI 固定出口提醒
 
-[`Monitor AI public IP`](./.github/workflows/monitor-ai.yml) 每天北京时间约 09:23 运行，也可以在 Actions 页面手动触发。它会临时启动 Mihomo，精确选择配置的节点并确认选择成功，再查询公网 IP；节点不存在时会失败，不会用直连结果代替。
+[`Monitor AI public IP`](./.github/workflows/monitor-ai.yml) 每天北京时间约 09:23 运行，也可以在 Actions 页面手动触发。它会临时启动 Mihomo，精确选择配置的节点并确认选择成功，再查询公网 IP；会等待订阅加载，超时后节点仍不存在时会失败，不会用直连结果代替。监控为每次运行分配空闲本地端口，并为控制接口和代理端口设置临时认证，避免与正在运行的客户端串用端口。
 
 在仓库的 `Settings` -> `Secrets and variables` -> `Actions` 中设置：
 
@@ -191,7 +191,9 @@ node scripts/validate-config.js
 | --- | --- | --- |
 | Repository variable | `AI_PROXY_NAME` | 客户端当前 AI 固定节点的完整名称，例如 `JP001`、`US006-IPV6`；未设置时默认为 `US006`。 |
 | Repository secret | `SUBSCRIPTION_URL` | 完整的 HTTPS Clash 订阅地址。 |
-| Repository secret | `AI_EXPECTED_IP` | 在可信设备上通过该节点访问 `https://api.ipify.org` 得到的公网 IP。 |
+| Repository secret | `AI_EXPECTED_IP` | 在可信设备上通过该节点访问 `https://api.ipify.org` 得到的 IPv4 公网 IP；不要填写 IPv6。 |
+
+`api.ipify.org` 返回 IPv4，因此监控基准只接受 IPv4；节点名称含 `IPV6` 仍可监控，但填写的是经该节点查询到的 IPv4 出口。
 
 仅当监控节点为 `US006` 且未配置 `AI_EXPECTED_IP` 时，兼容旧 Secret `US006_EXPECTED_IP`。其他节点必须使用新的基准，防止将不同节点的 IP 相互比较。
 
