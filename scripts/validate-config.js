@@ -36,7 +36,8 @@ function same(actual, expected, label) {
 function loadJsConfig() {
   const names = [
     "US006", "US001", "US002", "US003", "US004", "US005",
-    "JP001", "JP002", "JP003", "SG001", "KOR01"
+    "JP001", "JP002", "JP003", "SG001", "KOR01",
+    "US006-IPV6", "US005-IPV6", "DE001"
   ];
   const proxies = names.map((name) => ({
     name,
@@ -52,13 +53,28 @@ function loadJsConfig() {
     `${fs.readFileSync(path.join(root, "Clash", "Clash_mi.js"), "utf8")};this.mainFn=main`,
     context
   );
-  let rejectedMissingUs = false;
-  try {
-    context.mainFn({ proxies: [{ name: "JP001", type: "ss" }] });
-  } catch (error) {
-    rejectedMissingUs = /美国节点/.test(error.message);
+  function aiChoices(config) {
+    return config["proxy-groups"].find((group) => group.name === "🔒 AI 固定出口").proxies;
   }
-  assert(rejectedMissingUs, "Clash JS must reject subscriptions without US nodes");
+  for (const scenario of [
+    ["JP001", "SG001"],
+    ["US006-IPV6", "US005-IPV6", "JP001"],
+    ["DE001"]
+  ]) {
+    const config = context.mainFn({ proxies: scenario.map((name) => ({ name, type: "ss" })) });
+    same(Array.from(aiChoices(config)), scenario, "AI candidates without exact US006");
+  }
+  const withDirect = context.mainFn({ proxies: [
+    { name: "direct-node", type: "direct" }, { name: "JP001", type: "ss" }
+  ] });
+  same(Array.from(aiChoices(withDirect)), ["JP001"], "AI candidates excluding direct adapters");
+  let rejectedEmpty = false;
+  try {
+    context.mainFn({ proxies: [] });
+  } catch (error) {
+    rejectedEmpty = /没有可用节点/.test(error.message);
+  }
+  assert(rejectedEmpty, "Clash JS must reject subscriptions without usable nodes");
   return context.mainFn({ proxies });
 }
 
@@ -131,14 +147,21 @@ function main() {
     const us = config["proxy-groups"].find((group) => group.name === "🇺🇸 美国节点");
     const automatic = config["proxy-groups"].find((group) => group.name === "♻️ 自动选择");
     const ads = config["proxy-groups"].find((group) => group.name === "🛡️ 广告拦截");
-    assert(ai && ai.proxies[0] === "US006", "US006 must remain the default AI node");
-    assert(ai.proxies.every((name) => /^US/i.test(name)), "The fixed AI group must contain only US nodes");
-    assert(us && us.type === "select" && JSON.stringify(us.proxies) === JSON.stringify(["🔒 AI 固定出口"]), "US region must share the fixed AI exit");
-    assert(automatic && automatic.proxies.includes("🔒 AI 固定出口"), "Automatic selection must use the shared US exit");
+    assert(ai && ai.type === "select", "AI exit must remain manually selected");
+    assert(us && us.type === "select", "US region must remain manually selected");
     if (config === jsConfig) {
-      assert(!automatic.proxies.some((name) => /^US/i.test(name)), "Automatic selection must not contain raw US nodes");
+      assert(ai.proxies[0] === "US006", "Prefer exact US006 when available");
+      same(Array.from(ai.proxies), config.proxies.map((proxy) => proxy.name), "All-region AI candidates");
+      for (const name of ["JP001", "SG001", "KOR01", "DE001", "US006-IPV6", "US005-IPV6"]) {
+        assert(ai.proxies.includes(name), `AI exit is missing ${name}`);
+      }
+      assert(us.proxies.every((name) => /^US/i.test(name)), "US region must contain only US nodes");
+      same(Array.from(automatic.proxies), config.proxies.map((proxy) => proxy.name), "Automatic candidates");
     } else {
-      assert(automatic["exclude-filter"] === "(?i)^(US|USA|美国|🇺🇸)", "Static automatic selection must exclude raw US nodes");
+      assert(ai["include-all-proxies"] && !ai.filter && !ai.proxies, "Static AI exit must dynamically include all regions");
+      assert(ai["exclude-type"] === "Direct", "Static AI exit must exclude direct adapters");
+      assert(us["include-all-proxies"] && us.filter === "(?i)^(US|USA|美国|🇺🇸)", "Static US region must filter US nodes");
+      assert(automatic["include-all-proxies"] && !automatic["exclude-filter"] && !automatic.proxies, "Static automatic selection must include all nodes");
     }
     assert(ads && JSON.stringify(ads.proxies) === JSON.stringify(["REJECT", "DIRECT"]), "Ad switch is invalid");
     assert(config["sub-rules"]["ad-filter"][0] === "RULE-SET,ad-allowlist,PASS", "Allowlist must run before anti-AD");

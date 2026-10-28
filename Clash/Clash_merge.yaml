@@ -153,14 +153,9 @@ proxy-groups:
 
   - name: 🔒 AI 固定出口
     type: select
-    proxies:
-      # 固定节点放在最前，避免不同 AI 域名因自动测速使用不同出口
-      - US006
-      - US001
-      - US002
-      - US003
-      - US004
-      - US005
+    # 自动纳入各地区订阅节点（包括 -IPV6 名称），手动选择并保持固定
+    include-all-proxies: true
+    exclude-type: Direct
 
   - name: 💻 开发服务
     type: select
@@ -179,10 +174,7 @@ proxy-groups:
 
   - name: ♻️ 自动选择
     type: url-test
-    proxies:
-      - 🔒 AI 固定出口
     include-all-proxies: true
-    exclude-filter: '(?i)^(US|USA|美国|🇺🇸)'
     exclude-type: Direct
     url: https://cp.cloudflare.com/generate_204
     interval: 600
@@ -194,8 +186,9 @@ proxy-groups:
 
   - name: 🇺🇸 美国节点
     type: select
-    proxies:
-      - 🔒 AI 固定出口
+    include-all-proxies: true
+    filter: '(?i)^(US|USA|美国|🇺🇸)'
+    exclude-type: Direct
 
   - name: 🇯🇵 日本节点
     type: url-test

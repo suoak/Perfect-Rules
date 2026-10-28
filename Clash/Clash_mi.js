@@ -1,7 +1,9 @@
 function main(config) {
   var proxies = Array.isArray(config["proxies"]) ? config["proxies"] : [];
   var proxyNames = proxies
-    .filter(function(proxy) { return proxy && proxy.name; })
+    .filter(function(proxy) {
+      return proxy && proxy.name && !/^direct$/i.test(proxy.type || "");
+    })
     .map(function(proxy) { return proxy.name; });
 
   if (proxyNames.length === 0) {
@@ -32,25 +34,19 @@ function main(config) {
   var unitedStatesNodes = matching(/^(?:US|USA|美国|🇺🇸)/i);
   var japanNodes = matching(/^(?:JP|JPN|日本|🇯🇵)/i);
 
-  if (unitedStatesNodes.length === 0) {
-    throw new Error("订阅中没有可用于 AI 固定出口的美国节点");
-  }
-
-  var stableAIProxy = unitedStatesNodes.filter(function(name) {
+  var stableAIProxy = proxyNames.filter(function(name) {
     return /^US006$/i.test(name);
-  })[0] || unitedStatesNodes[0];
+  })[0] || proxyNames[0];
   var fixedAIChoices = [stableAIProxy].concat(
-    unitedStatesNodes.filter(function(name) { return name !== stableAIProxy; })
+    proxyNames.filter(function(name) { return name !== stableAIProxy; })
   );
-  var automaticChoices = ["🔒 AI 固定出口"].concat(
-    proxyNames.filter(function(name) { return unitedStatesNodes.indexOf(name) === -1; })
-  );
+  var automaticChoices = proxyNames.slice();
 
   var regionGroups = [
     {
       "name": "🇺🇸 美国节点",
       "type": "select",
-      "proxies": ["🔒 AI 固定出口"]
+      "proxies": unitedStatesNodes
     },
     urlTestGroup("🇯🇵 日本节点", japanNodes),
     urlTestGroup("🇸🇬 新加坡节点", singaporeNodes),
